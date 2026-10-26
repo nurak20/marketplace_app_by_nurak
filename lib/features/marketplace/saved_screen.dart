@@ -5,6 +5,7 @@ import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
+import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/product_artwork.dart';
 import '../../core/components/show_error.dart';
 import '../../core/models.dart';
@@ -29,10 +30,15 @@ class _SavedScreenState extends State<SavedScreen> {
 
   Future<void> _remove(int id) async {
     try {
+      final page = await _saved;
       await api.removeSavedProduct(id);
       if (mounted) {
         setState(() {
-          _load();
+          _saved = Future.value(
+            page.withItems(
+              page.items.where((product) => product.id != id).toList(),
+            ),
+          );
         });
       }
     } catch (error) {
@@ -51,12 +57,12 @@ class _SavedScreenState extends State<SavedScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Saved items')),
+    appBar: const MarketplaceAppBar(title: 'Saved items'),
     body: FutureBuilder<ApiPage<Product>>(
       future: _saved,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         if (snapshot.hasError) {
           return ErrorRetryPanel(
@@ -91,6 +97,7 @@ class _SavedScreenState extends State<SavedScreen> {
                     child: ProductArtwork(
                       category: product.category,
                       height: 72,
+                      image: product.primaryImage,
                     ),
                   ),
                 ),

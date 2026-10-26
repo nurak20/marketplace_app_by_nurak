@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'core/api.dart';
 import 'core/app_theme.dart';
 import 'core/session_store.dart';
+import 'core/singleton.dart';
 import 'features/auth/auth_screens.dart';
+import 'features/auth/splash_screen.dart';
 import 'features/chats/chat_screens.dart';
 import 'features/dev/api_base_url_screen.dart';
 import 'features/marketplace/marketplace_screens.dart';
+import 'features/marketplace/comments_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/reviews/review_screen.dart';
@@ -26,9 +31,14 @@ CustomTransitionPage<void> _fadeTabPage(GoRouterState state, Widget child) =>
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SessionStore.instance.initialize();
-  await Api.instance.initialize();
-  runApp(const MarketplaceApp());
+  await api.initialize();
+  if (kIsWeb) usePathUrlStrategy();
+  runApp(
+    ChangeNotifierProvider<Singleton>.value(
+      value: Singleton.instance,
+      child: const MarketplaceApp(),
+    ),
+  );
 }
 
 class MarketplaceApp extends StatefulWidget {
@@ -40,19 +50,12 @@ class MarketplaceApp extends StatefulWidget {
 
 class _MarketplaceAppState extends State<MarketplaceApp> {
   late final GoRouter _router = GoRouter(
-    initialLocation: kDebugMode ? '/api-settings' : '/',
+    navigatorKey: Singleton.instance.navigatorKey,
+    initialLocation: '/splash',
     refreshListenable: SessionStore.instance,
-    redirect: (context, state) {
-      final session = SessionStore.instance;
-      if (kDebugMode && state.matchedLocation == '/api-settings') return null;
-      final onAuthPage =
-          state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
-      if (!session.isAuthenticated && !onAuthPage) return '/login';
-      if (session.isAuthenticated && onAuthPage) return '/';
-      return null;
-    },
+    redirect: _authRedirect,
     routes: [
+      GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
       if (kDebugMode)
         GoRoute(
           path: '/api-settings',
@@ -61,8 +64,8 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       ShellRoute(
-        builder: (context, state, child) =>
-            AppShell(location: state.uri.path, child: child),
+        builder: (_, state, child) =>
+            AppShell(location: state.matchedLocation, child: child),
         routes: [
           GoRoute(
             path: '/',
@@ -98,8 +101,20 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
             path: '/products/:id',
             builder: (_, state) => ProductDetailScreen(
               productId: int.parse(state.pathParameters['id']!),
-              showComments: state.uri.queryParameters['comments'] == 'true',
               postId: int.tryParse(state.uri.queryParameters['postId'] ?? ''),
+            ),
+          ),
+          GoRoute(
+            path: '/posts/:postId/products/:productId/comments',
+            builder: (_, state) => ProductCommentsScreen(
+              postId: int.parse(state.pathParameters['postId']!),
+              productId: int.parse(state.pathParameters['productId']!),
+            ),
+          ),
+          GoRoute(
+            path: '/products/:id/reviews',
+            builder: (_, state) => ProductReviewsScreen(
+              productId: int.parse(state.pathParameters['id']!),
             ),
           ),
           GoRoute(
@@ -115,6 +130,25 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
       ),
     ],
   );
+
+  String? _authRedirect(BuildContext context, GoRouterState state) {
+    final session = SessionStore.instance;
+    final location = state.matchedLocation;
+    if (kDebugMode && location == '/api-settings') return null;
+
+    if (!session.isInitialized) {
+      return location == '/splash' ? null : '/splash';
+    }
+
+    if (location == '/splash') {
+      return session.isAuthenticated ? '/' : '/login';
+    }
+
+    final onAuthPage = location == '/login' || location == '/register';
+    if (!session.isAuthenticated && !onAuthPage) return '/login';
+    if (session.isAuthenticated && onAuthPage) return '/';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp.router(

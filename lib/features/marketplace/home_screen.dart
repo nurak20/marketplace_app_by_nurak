@@ -6,7 +6,9 @@ import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
+import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/marketplace_post_card.dart';
+import '../../core/components/mk_button.dart';
 import '../../core/components/show_error.dart';
 import '../../core/models.dart';
 import 'marketplace_options.dart';
@@ -23,21 +25,22 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _category = 'All';
   late Future<ApiPage<MarketplacePost>> _posts;
-  final Set<int> _savedIds = {};
+  final Map<int, bool> _savedOverrides = {};
   final Set<(int, int)> _likingIds = {};
   final Map<(int, int), bool> _likedOverrides = {};
   final Map<(int, int), int> _likeCountOverrides = {};
-  bool _savedLoaded = false;
   int? _savingId;
 
   @override
   void initState() {
     super.initState();
     _loadPosts();
-    _loadSaved();
   }
 
   void _loadPosts() {
+    _savedOverrides.clear();
+    _likedOverrides.clear();
+    _likeCountOverrides.clear();
     _posts = api.posts();
   }
 
@@ -45,34 +48,15 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _loadPosts();
     });
-    await Future.wait([_posts, _loadSaved()]);
-  }
-
-  Future<void> _loadSaved() async {
-    try {
-      final result = await api.wishlist();
-      if (!mounted) return;
-      setState(() {
-        _savedIds
-          ..clear()
-          ..addAll(result.items.map((product) => product.id));
-        _savedLoaded = true;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _savedLoaded = true);
-    }
+    await _posts;
   }
 
   Future<void> _toggleSaved(Product product) async {
-    if (!_savedLoaded || _savingId != null) return;
-    final wasSaved = _savedIds.contains(product.id);
+    if (_savingId != null) return;
+    final wasSaved = _savedOverrides[product.id] ?? product.isSaved;
     setState(() {
       _savingId = product.id;
-      if (wasSaved) {
-        _savedIds.remove(product.id);
-      } else {
-        _savedIds.add(product.id);
-      }
+      _savedOverrides[product.id] = !wasSaved;
     });
     try {
       if (wasSaved) {
@@ -83,11 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (error) {
       if (mounted) {
         setState(() {
-          if (wasSaved) {
-            _savedIds.add(product.id);
-          } else {
-            _savedIds.remove(product.id);
-          }
+          _savedOverrides[product.id] = wasSaved;
         });
         showError(context, error);
       }
@@ -132,14 +112,11 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _loadPosts();
       });
-      await _loadSaved();
     }
   }
 
   Future<void> _openComments(MarketplacePost post, Product product) async {
-    await context.push(
-      '/products/${product.id}?comments=true&postId=${post.id}',
-    );
+    await context.push('/posts/${post.id}/products/${product.id}/comments');
     if (mounted) {
       setState(() {
         _loadPosts();
@@ -241,20 +218,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Nurak MK27'),
+    appBar: MarketplaceAppBar(
+      title: 'Nurak MK27',
       actions: [
-        IconButton(
-          onPressed: _openSearch,
-          tooltip: 'Search',
+        MKButton(
+          title: 'Search',
           icon: const Icon(Icons.search_rounded),
+          onPressed: _openSearch,
         ),
-        IconButton(
-          onPressed: () => context.push('/notifications'),
-          tooltip: 'Notifications',
-          icon: const Icon(Icons.notifications_none_rounded),
-        ),
-        const SizedBox(width: 4),
       ],
     ),
     body: RefreshIndicator(
@@ -288,12 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
             future: _posts,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(44),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                );
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
               }
               if (snapshot.hasError) {
                 return SliverToBoxAdapter(
@@ -335,7 +301,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         _likingIds.contains((post.id, product.id)),
                     onLike: _toggleLike,
                     onComment: _openComments,
-                    isSaved: (product) => _savedIds.contains(product.id),
+                    isSaved: (product) =>
+                        _savedOverrides[product.id] ?? product.isSaved,
                     onSave: _toggleSaved,
                     onProductTap: _openProduct,
                   );
@@ -460,7 +427,7 @@ class _ProductSearchSheetState extends State<ProductSearchSheet> {
                               child: ProductArtwork(
                                 category: product.category,
                                 height: 56,
-                                productId: product.id,
+                                image: product.primaryImage,
                               ),
                             ),
                           ),

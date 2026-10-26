@@ -3,9 +3,22 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
 import '../../core/session_store.dart';
+
+Future<void> _completeSignIn(String token) async {
+  final session = SessionStore.instance;
+  try {
+    await session.saveToken(token, notify: false);
+    await api.me();
+  } catch (_) {
+    await session.clear();
+    rethrow;
+  }
+  session.completeInitialization(authenticated: true);
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,10 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
     try {
-      await SessionStore.instance.saveToken(
+      await _completeSignIn(
         await api.login(_email.text.trim(), _password.text),
       );
-      if (mounted) context.go('/');
     } catch (error) {
       if (mounted) showError(context, error);
     } finally {
@@ -163,8 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
-      await SessionStore.instance.saveToken(token);
-      if (mounted) context.go('/');
+      await _completeSignIn(token);
     } catch (error) {
       if (mounted) showError(context, error);
     } finally {
@@ -174,9 +185,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: BackButton(onPressed: () => context.go('/login')),
-      title: const Text('Create account'),
+    appBar: MarketplaceAppBar(
+      title: 'Create account',
+      showNotifications: false,
+      showProfileAvatar: false,
     ),
     body: SafeArea(
       child: Form(

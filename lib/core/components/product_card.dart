@@ -31,7 +31,7 @@ class ProductCard extends StatelessWidget {
               ProductArtwork(
                 category: product.category,
                 height: 150,
-                productId: product.id,
+                image: product.primaryImage,
               ),
               if (onSave != null)
                 Positioned(

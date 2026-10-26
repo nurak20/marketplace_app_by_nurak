@@ -6,12 +6,17 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/choose_image_bottom_sheet.dart';
+import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
 import '../../core/models.dart';
 import 'marketplace_options.dart';
 
-typedef _Photo = ({XFile file, Uint8List bytes});
+typedef _Photo = ({
+  XFile file,
+  Uint8List bytes,
+});
 
 class _ProductDraft {
   final title = TextEditingController();
@@ -62,6 +67,7 @@ class _SellScreenState extends State<SellScreen> {
   Future<void> _pickPhotos(_ProductDraft product) async {
     final remaining = 5 - product.photos.length;
     if (remaining <= 0) return;
+    if (!await showChooseImageBottomSheet(context) || !mounted) return;
     try {
       final selected = await ImagePicker().pickMultiImage(
         limit: remaining,
@@ -73,7 +79,12 @@ class _SellScreenState extends State<SellScreen> {
       final photos = await Future.wait(
         selected
             .take(remaining)
-            .map((file) async => (file: file, bytes: await file.readAsBytes())),
+            .map(
+              (file) async => (
+                file: file,
+                bytes: await file.readAsBytes(),
+              ),
+            ),
       );
       if (mounted) setState(() => product.photos.addAll(photos));
     } catch (error) {
@@ -93,60 +104,47 @@ class _SellScreenState extends State<SellScreen> {
     'location': draft.location.text.trim(),
   };
 
-  String _postContent(List<Product> products) {
+  String _postContent(List<String> titles) {
     final caption = _caption.text.trim();
     if (caption.isNotEmpty) return caption;
-    if (products.length == 1) return products.first.title;
-    return 'For sale: ${products.map((product) => product.title).join(', ')}';
+    if (titles.length == 1) return titles.first;
+    return 'For sale: ${titles.join(', ')}';
   }
 
   Future<void> _publish() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
-    final created = <Product>[];
-    Object? createError;
-    Object? photoError;
     try {
+      final images = <XFile>[];
+      final products = <JsonMap>[];
       for (final draft in _products) {
-        try {
-          final product = await api.createProduct(_productBody(draft));
-          created.add(product);
-          for (final photo in draft.photos) {
-            try {
-              await api.uploadProductImage(product.id, photo.file);
-            } catch (error) {
-              photoError ??= error;
-            }
-          }
-        } catch (error) {
-          createError = error;
-          break;
+        final imageIndexes = <int>[];
+        for (final photo in draft.photos) {
+          imageIndexes.add(images.length);
+          images.add(photo.file);
         }
+        products.add({
+          ..._productBody(draft),
+          'imageIndexes': imageIndexes,
+        });
       }
 
-      if (created.isEmpty) {
-        if (createError != null) throw createError;
-        return;
-      }
-
-      await api.createListingPost(
-        created.map((product) => product.id).toList(),
-        _postContent(created),
+      final post = await api.createListing(
+        {
+          'content': _postContent(
+            _products.map((draft) => draft.title.text.trim()).toList(),
+          ),
+          'products': products,
+        },
+        images,
       );
 
       if (!mounted) return;
-      if (createError != null || photoError != null) {
-        final details = <String>[
-          if (createError != null)
-            'Some products could not be created: ${Api.errorMessage(createError)}',
-          if (photoError != null)
-            'A product image could not be uploaded: ${Api.errorMessage(photoError)}',
-        ].join(' ');
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('The post is live. $details')));
+      if (post.products.isEmpty) {
+        throw StateError('The API created the post without its products.');
       }
-      context.go('/products/${created.first.id}');
+      final firstProduct = post.products.first;
+      context.go('/products/${firstProduct.id}?postId=${post.id}');
     } catch (error) {
       if (mounted) showError(context, error);
     } finally {
@@ -301,7 +299,7 @@ class _SellScreenState extends State<SellScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Create a post')),
+    appBar: const MarketplaceAppBar(title: 'Create a post'),
     body: Form(
       key: _formKey,
       child: ListView(
@@ -347,7 +345,10 @@ class _SellScreenState extends State<SellScreen> {
 }
 
 class _PhotoTile extends StatelessWidget {
-  const _PhotoTile({required this.bytes, required this.onRemove});
+  const _PhotoTile({
+    required this.bytes,
+    required this.onRemove,
+  });
   final Uint8List bytes;
   final VoidCallback onRemove;
 

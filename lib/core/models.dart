@@ -11,14 +11,32 @@ class ApiPage<T> {
   final int page;
   final int totalPages;
 
-  factory ApiPage.fromJson(JsonMap json, T Function(JsonMap) parse) => ApiPage(
-    items: ((json['items'] as List?) ?? const [])
-        .whereType<Map>()
-        .map((item) => parse(Map<String, dynamic>.from(item)))
-        .toList(),
-    page: _int(json['page']),
-    totalPages: _int(json['totalPages']),
-  );
+  ApiPage<T> withItems(List<T> value) =>
+      ApiPage<T>(items: value, page: page, totalPages: totalPages);
+
+  factory ApiPage.fromJson(JsonMap json, T Function(JsonMap) parse) {
+    var payload = json;
+    while (payload['data'] is Map) {
+      payload = Map<String, dynamic>.from(payload['data'] as Map);
+    }
+
+    final pageable = payload['pageable'] is Map
+        ? Map<String, dynamic>.from(payload['pageable'] as Map)
+        : const <String, dynamic>{};
+    final rawItems =
+        payload['items'] ?? payload['content'] ?? payload['results'];
+
+    return ApiPage<T>(
+      items: (rawItems as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => parse(Map<String, dynamic>.from(item)))
+          .toList(),
+      page: _int(
+        payload['page'] ?? payload['number'] ?? pageable['pageNumber'],
+      ),
+      totalPages: _int(payload['totalPages']),
+    );
+  }
 }
 
 class Product {
@@ -32,6 +50,9 @@ class Product {
     this.category,
     this.condition = 'GOOD',
     this.location,
+    this.images = const [],
+    this.seller,
+    this.isSaved = false,
   });
 
   final int id;
@@ -43,6 +64,21 @@ class Product {
   final String? category;
   final String condition;
   final String? location;
+  final List<MarketplaceImage> images;
+  final UserProfile? seller;
+  final bool isSaved;
+
+  MarketplaceImage? get primaryImage {
+    for (final image in images) {
+      if (image.label.toLowerCase() == 'primary' && image.url.isNotEmpty) {
+        return image;
+      }
+    }
+    for (final image in images) {
+      if (image.url.isNotEmpty) return image;
+    }
+    return null;
+  }
 
   factory Product.fromJson(JsonMap json) => Product(
     id: _int(json['id']),
@@ -54,18 +90,122 @@ class Product {
     category: json['category'] as String?,
     condition: '${json['condition'] ?? 'GOOD'}',
     location: json['location'] as String?,
+    images: _productImagesFromJson(json),
+    seller: (json['seller'] ?? json['user']) is Map
+        ? UserProfile.fromJson(
+            Map<String, dynamic>.from((json['seller'] ?? json['user']) as Map),
+          )
+        : null,
+    isSaved: json['isSaved'] == true,
   );
 }
 
-class ProductImage {
-  const ProductImage(this.url, {this.primary = false});
-  final String url;
-  final bool primary;
-
-  factory ProductImage.fromJson(JsonMap json) => ProductImage(
-    '${json['imageUrl'] ?? ''}',
-    primary: json['isPrimary'] == true,
+List<MarketplaceImage> _productImagesFromJson(JsonMap json) {
+  final images = MarketplaceImage.listFromResponse(json['images']);
+  final direct = MarketplaceImage.tryParse(
+    json['image'] ?? json['imageUrl'] ?? json['primaryImageUrl'],
+    type: '${json['imageType'] ?? json['type'] ?? ''}',
+    label: '${json['label'] ?? 'primary'}',
   );
+  if (direct != null && !images.any((image) => image.url == direct.url)) {
+    images.insert(0, direct);
+  }
+  return images;
+}
+
+class MarketplaceImage {
+  const MarketplaceImage({
+    required this.url,
+    required this.type,
+    required this.label,
+  });
+
+  final String url;
+  final String type;
+  final String label;
+
+  factory MarketplaceImage.fromJson(JsonMap json) {
+    final url = '${json['url'] ?? json['imageUrl'] ?? ''}'.trim();
+    return MarketplaceImage(
+      url: url,
+      type: _imageType(
+        json['type'] ?? json['mimeType'] ?? json['contentType'],
+        url,
+      ),
+      label: '${json['label'] ?? (json['isPrimary'] == true ? 'primary' : '')}',
+    );
+  }
+
+  static MarketplaceImage? tryParse(
+    Object? value, {
+    String type = '',
+    String label = '',
+  }) {
+    if (value is Map) {
+      final image = MarketplaceImage.fromJson(Map<String, dynamic>.from(value));
+      return MarketplaceImage(
+        url: image.url,
+        type: image.type.isNotEmpty ? image.type : _imageType(type, image.url),
+        label: image.label.isNotEmpty ? image.label : label,
+      );
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      final url = value.trim();
+      return MarketplaceImage(
+        url: url,
+        type: _imageType(type, url),
+        label: label,
+      );
+    }
+    return null;
+  }
+
+  static MarketplaceImage? fromResponse(Object? value) {
+    if (value is Map) {
+      final json = Map<String, dynamic>.from(value);
+      for (final key in const ['image', 'item']) {
+        if (json[key] != null &&
+            json['url'] == null &&
+            json['imageUrl'] == null) {
+          return fromResponse(json[key]);
+        }
+      }
+      for (final key in const ['images', 'items']) {
+        final items = json[key];
+        if (items is List && items.isNotEmpty) return fromResponse(items.first);
+        if (items is Map) return fromResponse(items);
+      }
+      final image = tryParse(json);
+      if (image == null || image.url.isEmpty) return null;
+      return image;
+    }
+    return tryParse(value);
+  }
+
+  static List<MarketplaceImage> listFromResponse(Object? value) {
+    if (value is List) {
+      return value.map(fromResponse).whereType<MarketplaceImage>().toList();
+    }
+    if (value is Map) {
+      final json = Map<String, dynamic>.from(value);
+      for (final key in const ['images', 'items']) {
+        if (json[key] != null) return listFromResponse(json[key]);
+      }
+      final image = fromResponse(json);
+      return image == null || image.url.isEmpty ? [] : [image];
+    }
+    return [];
+  }
+
+  JsonMap toJson() => {'url': url, 'type': type, 'label': label};
+}
+
+String _imageType(Object? value, String url) {
+  final type = value is String ? value.trim() : '';
+  if (type.isNotEmpty) return type;
+  final path = Uri.tryParse(url)?.path ?? url.split('?').first;
+  final dot = path.lastIndexOf('.');
+  return dot < 0 ? '' : path.substring(dot + 1).toLowerCase();
 }
 
 class Review {
@@ -93,7 +233,7 @@ class UserProfile {
     required this.id,
     required this.username,
     this.fullName,
-    this.avatarUrl,
+    this.avatar,
     this.location,
     this.bio,
     this.email,
@@ -102,7 +242,7 @@ class UserProfile {
   final int id;
   final String username;
   final String? fullName;
-  final String? avatarUrl;
+  final MarketplaceImage? avatar;
   final String? location;
   final String? bio;
   final String? email;
@@ -124,7 +264,11 @@ class UserProfile {
       id: _int(profile['id']),
       username: '${profile['username'] ?? ''}',
       fullName: profile['fullName'] as String?,
-      avatarUrl: profile['avatarUrl'] as String?,
+      avatar: MarketplaceImage.tryParse(
+        profile['avatar'] ?? profile['avatarUrl'],
+        type: '${profile['avatarType'] ?? ''}',
+        label: 'avatar',
+      ),
       location: profile['location'] as String?,
       bio: profile['bio'] as String?,
       email: profile['email'] as String?,
@@ -163,6 +307,9 @@ class MarketplaceMessage {
     required this.content,
     this.productId,
     this.isRead = false,
+    this.sender,
+    this.receiver,
+    this.product,
   });
   final int id;
   final int senderId;
@@ -170,15 +317,34 @@ class MarketplaceMessage {
   final int? productId;
   final String content;
   final bool isRead;
+  final UserProfile? sender;
+  final UserProfile? receiver;
+  final Product? product;
 
-  factory MarketplaceMessage.fromJson(JsonMap json) => MarketplaceMessage(
-    id: _int(json['id']),
-    senderId: _int(json['senderId']),
-    receiverId: _int(json['receiverId']),
-    productId: json['productId'] == null ? null : _int(json['productId']),
-    content: '${json['content'] ?? ''}',
-    isRead: json['isRead'] == true,
-  );
+  UserProfile? contactFor(int userId) => senderId == userId ? receiver : sender;
+
+  factory MarketplaceMessage.fromJson(JsonMap json) {
+    final sender = json['sender'] ?? json['senderProfile'];
+    final receiver = json['receiver'] ?? json['receiverProfile'];
+    final product = json['product'];
+    return MarketplaceMessage(
+      id: _int(json['id']),
+      senderId: _int(json['senderId']),
+      receiverId: _int(json['receiverId']),
+      productId: json['productId'] == null ? null : _int(json['productId']),
+      content: '${json['content'] ?? ''}',
+      isRead: json['isRead'] == true,
+      sender: sender is Map
+          ? UserProfile.fromJson(Map<String, dynamic>.from(sender))
+          : null,
+      receiver: receiver is Map
+          ? UserProfile.fromJson(Map<String, dynamic>.from(receiver))
+          : null,
+      product: product is Map
+          ? Product.fromJson(Map<String, dynamic>.from(product))
+          : null,
+    );
+  }
 }
 
 class MarketplaceNotification {
@@ -194,6 +360,14 @@ class MarketplaceNotification {
   final String message;
   final bool isRead;
   final int? refId;
+
+  MarketplaceNotification withRead(bool value) => MarketplaceNotification(
+    id: id,
+    type: type,
+    message: message,
+    isRead: value,
+    refId: refId,
+  );
 
   factory MarketplaceNotification.fromJson(JsonMap json) =>
       MarketplaceNotification(
@@ -216,6 +390,7 @@ class MarketplacePost {
     this.commentCount = 0,
     this.hasReacted = false,
     this.productEngagements = const {},
+    this.seller,
   });
   final int id;
   final int userId;
@@ -226,6 +401,7 @@ class MarketplacePost {
   final int commentCount;
   final bool hasReacted;
   final Map<int, ProductEngagement> productEngagements;
+  final UserProfile? seller;
 
   ProductEngagement engagementFor(Product product) =>
       productEngagements[product.id] ?? const ProductEngagement();
@@ -240,10 +416,19 @@ class MarketplacePost {
     commentCount: commentCount,
     hasReacted: hasReacted,
     productEngagements: productEngagements,
+    seller: seller,
   );
 
   factory MarketplacePost.fromJson(JsonMap json) {
-    final post = asJsonMap(json['post']);
+    final post = json['post'] is Map
+        ? Map<String, dynamic>.from(json['post'] as Map)
+        : json;
+    final seller =
+        json['seller'] ??
+        json['user'] ??
+        post['seller'] ??
+        post['user'] ??
+        post['profile'];
     final rawCreatedAt = json['createdAt'] ?? post['createdAt'];
     return MarketplacePost(
       id: _int(post['id']),
@@ -255,6 +440,9 @@ class MarketplacePost {
       reactionCount: _int(json['reactionCount']),
       commentCount: _int(json['commentCount']),
       hasReacted: json['hasReacted'] == true,
+      seller: seller is Map
+          ? UserProfile.fromJson(Map<String, dynamic>.from(seller))
+          : null,
       productEngagements: {
         for (final item
             in ((json['productEngagements'] as List?) ?? const [])
@@ -303,7 +491,7 @@ class PostComment {
     this.parentId,
     this.username,
     this.fullName,
-    this.avatarUrl,
+    this.avatar,
     this.replies = const [],
   });
   final int id;
@@ -312,7 +500,7 @@ class PostComment {
   final int? parentId;
   final String? username;
   final String? fullName;
-  final String? avatarUrl;
+  final MarketplaceImage? avatar;
   final List<PostComment> replies;
 
   String get displayName => (fullName?.trim().isNotEmpty ?? false)
@@ -330,7 +518,14 @@ class PostComment {
       parentId: json['parentId'] == null ? null : _int(json['parentId']),
       username: (json['username'] ?? author['username']) as String?,
       fullName: (json['fullName'] ?? author['fullName']) as String?,
-      avatarUrl: (json['avatarUrl'] ?? author['avatarUrl']) as String?,
+      avatar: MarketplaceImage.tryParse(
+        json['avatar'] ??
+            author['avatar'] ??
+            json['avatarUrl'] ??
+            author['avatarUrl'],
+        type: '${json['avatarType'] ?? author['avatarType'] ?? ''}',
+        label: 'avatar',
+      ),
       replies: ((json['replies'] as List?) ?? const [])
           .whereType<Map>()
           .map((item) => PostComment.fromJson(Map<String, dynamic>.from(item)))

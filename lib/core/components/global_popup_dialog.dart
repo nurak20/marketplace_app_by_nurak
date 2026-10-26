@@ -1,14 +1,31 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../app_theme.dart';
+import '../singleton.dart';
+
+class LoadingDialogHandle {
+  LoadingDialogHandle._(this._onClose);
+
+  final VoidCallback _onClose;
+  bool _closed = false;
+
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    _onClose();
+  }
+}
 
 abstract final class GlobalPopupDialog {
-  static DialogRoute<void>? _loadingRoute;
+  static RawDialogRoute<void>? _loadingRoute;
   static NavigatorState? _loadingNavigator;
-  static int _loadingRequests = 0;
-  static bool _manualLoading = false;
+  static int _requestLoadingCount = 0;
+  static int _manualLoadingCount = 0;
+  static bool _legacyManualLoading = false;
 
   static Future<bool?> yesNoPrompt(
     BuildContext context, {
@@ -104,43 +121,84 @@ abstract final class GlobalPopupDialog {
     );
   }
 
-  static void loading(BuildContext context, {String message = 'Loading...'}) {
-    _manualLoading = true;
-    _showLoadingRoute(context, message);
+  static void loading(BuildContext context, {String message = 'Loading....'}) {
+    _legacyManualLoading = true;
+    _ensureLoadingRoute(context, message);
   }
 
-  static void _showLoadingRoute(BuildContext context, String message) {
+  static LoadingDialogHandle? showLoading({
+    String? content,
+    bool dismiss = false,
+    VoidCallback? onCancel,
+  }) {
+    final context = Singleton.instance.navigatorKey.currentContext;
+    if (context == null || !context.mounted) return null;
+
+    _manualLoadingCount++;
+    _ensureLoadingRoute(
+      context,
+      content ?? 'Loading....',
+      dismiss: dismiss,
+      onCancel: onCancel,
+    );
+    return LoadingDialogHandle._(() {
+      if (_manualLoadingCount > 0) _manualLoadingCount--;
+      _removeLoadingIfIdle();
+    });
+  }
+
+  static LoadingDialogHandle? showRequestLoading({
+    String content = 'Loading....',
+  }) {
+    final context = Singleton.instance.navigatorKey.currentContext;
+    if (context == null || !context.mounted) return null;
+    return _showRequestLoadingAt(context, content);
+  }
+
+  static LoadingDialogHandle _showRequestLoadingAt(
+    BuildContext context,
+    String content,
+  ) {
+    _requestLoadingCount++;
+    _ensureLoadingRoute(context, content);
+    return LoadingDialogHandle._(() {
+      if (_requestLoadingCount > 0) _requestLoadingCount--;
+      _removeLoadingIfIdle();
+    });
+  }
+
+  static void _ensureLoadingRoute(
+    BuildContext context,
+    String message, {
+    bool dismiss = false,
+    VoidCallback? onCancel,
+  }) {
     if (_loadingRoute?.isActive == true) return;
 
     final navigator = Navigator.of(context, rootNavigator: true);
-    final route = DialogRoute<void>(
-      context: context,
-      themes: InheritedTheme.capture(from: context, to: navigator.context),
-      barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.4,
-                    color: StyleColor.ink,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Flexible(child: Text(message)),
-              ],
+    final route = RawDialogRoute<void>(
+      barrierColor: Colors.white.withValues(alpha: .8),
+      barrierDismissible: dismiss,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      settings: const RouteSettings(name: 'marketplace/loading'),
+      pageBuilder: (_, _, _) => Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: ColoredBox(color: Colors.white.withValues(alpha: .01)),
+              ),
             ),
-          ),
+            Center(
+              child: _LoadingDialogContent(
+                content: message,
+                onCancel: onCancel,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -151,19 +209,25 @@ abstract final class GlobalPopupDialog {
         if (identical(_loadingRoute, route)) {
           _loadingRoute = null;
           _loadingNavigator = null;
-          _manualLoading = false;
+          _manualLoadingCount = 0;
+          _legacyManualLoading = false;
         }
       }),
     );
   }
 
   static void hideLoading() {
-    _manualLoading = false;
+    _legacyManualLoading = false;
+    _manualLoadingCount = 0;
     _removeLoadingIfIdle();
   }
 
   static void _removeLoadingIfIdle() {
-    if (_manualLoading || _loadingRequests > 0) return;
+    if (_legacyManualLoading ||
+        _manualLoadingCount > 0 ||
+        _requestLoadingCount > 0) {
+      return;
+    }
     final route = _loadingRoute;
     final navigator = _loadingNavigator;
     _loadingRoute = null;
@@ -176,15 +240,13 @@ abstract final class GlobalPopupDialog {
   static Future<T> withLoading<T>(
     BuildContext context,
     Future<T> Function() request, {
-    String message = 'Loading...',
+    String message = 'Loading....',
   }) async {
-    _loadingRequests++;
-    _showLoadingRoute(context, message);
+    final handle = _showRequestLoadingAt(context, message);
     try {
       return await request();
     } finally {
-      _loadingRequests--;
-      _removeLoadingIfIdle();
+      handle.close();
     }
   }
 
@@ -202,6 +264,108 @@ abstract final class GlobalPopupDialog {
     style: const TextStyle(
       fontSize: StyleFont.mediumSize,
       fontWeight: FontWeight.w400,
+    ),
+  );
+}
+
+class _LoadingDialogContent extends StatefulWidget {
+  const _LoadingDialogContent({required this.content, this.onCancel});
+
+  final String content;
+  final VoidCallback? onCancel;
+
+  @override
+  State<_LoadingDialogContent> createState() => _LoadingDialogContentState();
+}
+
+class _LoadingDialogContentState extends State<_LoadingDialogContent>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1500),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 200,
+    height: 240,
+    decoration: const BoxDecoration(
+      borderRadius: BorderRadius.zero,
+      color: Colors.transparent,
+    ),
+    alignment: Alignment.center,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 110,
+          height: 110,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 100, end: 0),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              final progress = 1 - value / 100;
+              return Opacity(
+                opacity: progress.clamp(0.0, 1.0).toDouble(),
+                child: Transform.scale(
+                  scale: (0.6 + progress * 0.4).clamp(0.3, 1.0).toDouble(),
+                  child: child,
+                ),
+              );
+            },
+            child: Lottie.asset(
+              'lib/assets/lotties/loading.json',
+              width: 110,
+              height: 110,
+              fit: BoxFit.contain,
+              repeat: true,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        AnimatedBuilder(
+          animation: _shimmer,
+          builder: (context, child) {
+            final start = -2 + _shimmer.value * 4;
+            return ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                begin: Alignment(start, 0),
+                end: Alignment(start + 2, 0),
+                colors: [
+                  StyleColor.muted.withValues(alpha: .4),
+                  StyleColor.ink,
+                  StyleColor.muted.withValues(alpha: .4),
+                ],
+                stops: const [0.25, 0.5, 0.75],
+              ).createShader(bounds),
+              blendMode: BlendMode.srcIn,
+              child: child,
+            );
+          },
+          child: Text(
+            widget.content,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: StyleColor.muted,
+              fontSize: StyleFont.largeSize,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        if (widget.onCancel != null) ...[
+          const SizedBox(height: 16),
+          TextButton(onPressed: widget.onCancel, child: const Text('Cancel')),
+        ],
+      ],
     ),
   );
 }

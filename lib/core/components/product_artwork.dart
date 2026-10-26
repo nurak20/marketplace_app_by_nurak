@@ -2,32 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../app_theme.dart';
+import '../models.dart';
 
 class ProductArtwork extends StatelessWidget {
   const ProductArtwork({
     super.key,
     this.category,
     this.height = 180,
-    this.imageUrl,
-    this.productId,
+    this.image,
   });
 
   final String? category;
   final double height;
-  final String? imageUrl;
-  final int? productId;
+  final MarketplaceImage? image;
 
   @override
   Widget build(BuildContext context) {
-    if (imageUrl?.isNotEmpty == true) return _networkImage(imageUrl!);
-    if (productId != null) {
-      return FutureBuilder<String?>(
-        future: api.primaryProductImage(productId!),
-        builder: (context, snapshot) => snapshot.data?.isNotEmpty == true
-            ? _networkImage(snapshot.data!)
-            : _placeholder(),
-      );
-    }
+    if (image?.url.isNotEmpty == true) return _networkImage(image!.url);
     return _placeholder();
   }
 

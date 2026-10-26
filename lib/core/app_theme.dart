@@ -92,7 +92,7 @@ ThemeData buildAppTheme() {
       indicatorColor: StyleColor.accent.withValues(alpha: .25),
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => TextStyle(
-          fontSize: StyleFont.mediumSize,
+          fontSize: 11,
           fontWeight: FontWeight.w400,
           color: states.contains(WidgetState.selected)
               ? StyleColor.ink

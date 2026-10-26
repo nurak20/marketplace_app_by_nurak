@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/choose_image_bottom_sheet.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/global_popup_dialog.dart';
+import '../../core/components/marketplace_app_bar.dart';
+import '../../core/components/mk_button.dart';
 import '../../core/components/product_card.dart';
 import '../../core/components/show_error.dart';
 import '../../core/models.dart';
-import '../../core/profile_provider.dart';
+import '../../core/singleton.dart';
 import '../../core/session_store.dart';
+
+typedef _Listing = ({MarketplacePost post, Product product});
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,25 +25,28 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late Future<(Account, ApiPage<Product>)> _profile;
+  late Future<(Account, List<_Listing>)> _profile;
   @override
   void initState() {
     super.initState();
     _load();
   }
 
-  void _load({bool refreshProfile = false}) {
-    _profile = _fetch(refreshProfile: refreshProfile);
+  void _load() {
+    _profile = _fetch();
   }
 
-  Future<(Account, ApiPage<Product>)> _fetch({
-    bool refreshProfile = false,
-  }) async {
-    final account = refreshProfile || profileProvider.account == null
-        ? await api.me()
-        : profileProvider.account!;
-    final products = await api.products(sellerId: account.profile.id);
-    return (account, products);
+  Future<(Account, List<_Listing>)> _fetch() async {
+    final account = Singleton.instance.account;
+    if (account == null) {
+      throw StateError('The signed-in account is unavailable.');
+    }
+    final posts = await api.posts(userId: account.profile.id);
+    final listings = [
+      for (final post in posts.items)
+        for (final product in post.products) (post: post, product: product),
+    ];
+    return (account, listings);
   }
 
   Future<void> _logout() async {
@@ -53,8 +62,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) context.go('/login');
   }
 
-  Future<void> _openProduct(int id) async {
-    await context.push('/products/$id');
+  Future<void> _openProduct(int id, int postId) async {
+    await context.push('/products/$id?postId=$postId');
     if (mounted) {
       setState(() {
         _load();
@@ -63,6 +72,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _chooseAvatar() async {
+    if (!await showChooseImageBottomSheet(context) || !mounted) return;
+
     XFile? image;
     try {
       image = await ImagePicker().pickImage(
@@ -101,38 +112,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Me'),
+    appBar: MarketplaceAppBar(
+      title: 'Me',
+      showNotifications: false,
       actions: [
-        IconButton(
-          onPressed: () => context.push('/notifications'),
-          tooltip: 'Notifications',
-          icon: const Icon(Icons.notifications_none_rounded),
+        MKButton(
+          title: 'Chats',
+          icon: const Icon(Icons.chat_bubble_outline_rounded),
+          onPressed: () => context.go('/chats'),
         ),
-        IconButton(
-          onPressed: _logout,
-          tooltip: 'Log out',
+        MKButton(
+          title: 'Favorite',
+          icon: const Icon(Icons.favorite_border_rounded),
+          onPressed: () => context.go('/saved'),
+        ),
+        if (kDebugMode)
+          MKButton(
+            title: 'Change API URL',
+            icon: const Icon(Icons.settings_ethernet_rounded),
+            onPressed: () => context.go('/api-settings'),
+          ),
+        MKButton(
+          title: 'Log out',
           icon: const Icon(Icons.logout_rounded),
+          onPressed: _logout,
         ),
         const SizedBox(width: 4),
       ],
     ),
-    body: FutureBuilder<(Account, ApiPage<Product>)>(
+    body: FutureBuilder<(Account, List<_Listing>)>(
       future: _profile,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         if (snapshot.hasError) {
           return _ProfileError(
             error: snapshot.error!,
-            onRetry: () => setState(() {
-              _load(refreshProfile: true);
-            }),
+            onRetry: () => setState(_load),
           );
         }
         final (account, listings) = snapshot.data!;
         final user = account.profile;
+        final avatarUrl = user.avatar?.url;
         final name = user.displayName;
         final initials = name
             .trim()
@@ -142,9 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             .join();
         return RefreshIndicator(
           onRefresh: () async {
-            setState(() {
-              _load(refreshProfile: true);
-            });
+            setState(_load);
             await _profile;
           },
           child: CustomScrollView(
@@ -181,10 +201,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 CircleAvatar(
                                   radius: 38,
                                   backgroundColor: StyleColor.accent,
-                                  child: user.avatarUrl?.isNotEmpty == true
+                                  child: avatarUrl?.isNotEmpty == true
                                       ? ClipOval(
                                           child: Image.network(
-                                            api.resolveUrl(user.avatarUrl!),
+                                            api.resolveUrl(avatarUrl!),
                                             width: 76,
                                             height: 76,
                                             fit: BoxFit.cover,
@@ -257,7 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 _StatCard(
                                   label: 'Listings',
-                                  value: '${listings.items.length}',
+                                  value: '${listings.length}',
                                 ),
                                 const SizedBox(width: 10),
                                 _StatCard(label: 'Member', value: 'Active'),
@@ -278,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              if (listings.items.isEmpty)
+              if (listings.isEmpty)
                 const SliverToBoxAdapter(
                   child: SizedBox(
                     height: 200,
@@ -293,7 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 26),
                   sliver: SliverGrid.builder(
-                    itemCount: listings.items.length,
+                    itemCount: listings.length,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
@@ -302,8 +322,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           childAspectRatio: .74,
                         ),
                     itemBuilder: (context, index) => ProductCard(
-                      product: listings.items[index],
-                      onTap: () => _openProduct(listings.items[index].id),
+                      product: listings[index].product,
+                      onTap: () => _openProduct(
+                        listings[index].product.id,
+                        listings[index].post.id,
+                      ),
                     ),
                   ),
                 ),

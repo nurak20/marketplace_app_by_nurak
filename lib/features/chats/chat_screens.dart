@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/empty_state.dart';
-import '../../core/components/global_popup_dialog.dart';
+import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/product_artwork.dart';
 import '../../core/components/show_error.dart';
 import '../../core/components/user_avatar.dart';
 import '../../core/models.dart';
+import '../../core/singleton.dart';
 
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
@@ -17,8 +18,7 @@ class ChatsScreen extends StatefulWidget {
 }
 
 class _ChatsScreenState extends State<ChatsScreen> {
-  late Future<(Account, List<MarketplaceMessage>, Map<int, UserProfile>)>
-  _inbox;
+  late Future<List<MarketplaceMessage>> _inbox;
   @override
   void initState() {
     super.initState();
@@ -29,36 +29,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
     _inbox = _fetchInbox();
   }
 
-  Future<(Account, List<MarketplaceMessage>, Map<int, UserProfile>)>
-  _fetchInbox() async {
-    final account = await api.me();
-    final messages = await api.inbox();
-    final userIds = messages
-        .map(
-          (message) => message.senderId == account.profile.id
-              ? message.receiverId
-              : message.senderId,
-        )
-        .toSet();
-    final profiles = <int, UserProfile>{};
-    await Future.wait(
-      userIds.map((id) async {
-        try {
-          profiles[id] = UserProfile.fromJson(await api.profile(id));
-        } catch (_) {}
-      }),
-    );
-    return (account, messages, profiles);
-  }
+  Future<List<MarketplaceMessage>> _fetchInbox() => api.inbox();
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Chats')),
-    body: FutureBuilder<(Account, List<MarketplaceMessage>, Map<int, UserProfile>)>(
+    appBar: const MarketplaceAppBar(title: 'Chats'),
+    body: FutureBuilder<List<MarketplaceMessage>>(
       future: _inbox,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         if (snapshot.hasError) {
           return _ErrorRetry(
@@ -68,10 +48,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
             }),
           );
         }
-        final (account, messages, profiles) = snapshot.data!;
+        final messages = snapshot.data!;
+        final currentUserId = Singleton.instance.account?.profile.id ?? -1;
         final threads = <int, MarketplaceMessage>{};
         for (final message in messages) {
-          final id = message.senderId == account.profile.id
+          final id = message.senderId == currentUserId
               ? message.receiverId
               : message.senderId;
           threads.putIfAbsent(id, () => message);
@@ -91,7 +72,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
           itemBuilder: (context, index) {
             final userId = threads.keys.elementAt(index);
             final message = threads[userId]!;
-            final profile = profiles[userId];
+            final profile = message.contactFor(currentUserId);
             return Card(
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(
@@ -146,41 +127,31 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Future<(Account, UserProfile?, List<MarketplaceMessage>, Product?)>
   _fetchConversation() async {
-    final account = await api.me();
-    await api.markConversationRead(widget.userId);
-    final results = await Future.wait([
-      api.conversation(widget.userId),
-      api
-          .profile(widget.userId)
-          .then<UserProfile?>((json) => UserProfile.fromJson(json))
-          .catchError((_) => null),
-      if (widget.productId != null)
-        api.product(widget.productId!).then<Product?>((product) => product)
-      else
-        Future<Product?>.value(null),
-    ]);
-    final messages = (results[0] as ApiPage<MarketplaceMessage>).items.toList()
+    final account = Singleton.instance.account;
+    if (account == null) {
+      throw StateError('The signed-in account is unavailable.');
+    }
+    final messages = (await api.conversation(widget.userId)).items.toList()
       ..sort((a, b) => a.id.compareTo(b.id));
-    return (
-      account,
-      results[1] as UserProfile?,
-      messages,
-      results[2] as Product?,
-    );
+    final contact = messages.isEmpty
+        ? null
+        : messages.last.contactFor(account.profile.id);
+    Product? product;
+    for (final message in messages) {
+      if (message.product != null) {
+        product = message.product;
+        break;
+      }
+    }
+    return (account, contact, messages, product);
   }
 
   Future<void> _send() async {
     final content = _composer.text.trim();
     if (content.isEmpty || _sending) return;
     setState(() => _sending = true);
-    Set<int> previousMessageIds = {};
-    int? currentUserId;
     try {
-      final loadedConversation = await _conversation;
-      previousMessageIds = loadedConversation.$3
-          .map((message) => message.id)
-          .toSet();
-      currentUserId = loadedConversation.$1.profile.id;
+      await _conversation;
       await api.sendMessage(
         widget.userId,
         content,
@@ -189,17 +160,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _composer.clear();
       if (mounted) _reloadAndScrollToLatest();
     } catch (error) {
-      final saved =
-          currentUserId != null &&
-          await _messageWasSaved(content, previousMessageIds, currentUserId);
       if (!mounted) return;
-      if (saved) {
-        _composer.clear();
-        _reloadAndScrollToLatest();
-        await GlobalPopupDialog.success(context, message: 'Message sent.');
-      } else {
-        showError(context, error);
-      }
+      showError(context, error);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -220,31 +182,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
-  Future<bool> _messageWasSaved(
-    String content,
-    Set<int> previousMessageIds,
-    int currentUserId,
-  ) async {
-    try {
-      final latest = await api.conversation(widget.userId);
-      return latest.items.any(
-        (message) =>
-            !previousMessageIds.contains(message.id) &&
-            message.senderId == currentUserId &&
-            message.receiverId == widget.userId &&
-            message.content == content &&
-            message.productId == widget.productId,
-      );
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      titleSpacing: 0,
-      title:
+    appBar: MarketplaceAppBar(
+      title: 'Conversation',
+      titleContent:
           FutureBuilder<
             (Account, UserProfile?, List<MarketplaceMessage>, Product?)
           >(
@@ -274,7 +216,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           future: _conversation,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const SizedBox.shrink();
             }
             if (snapshot.hasError) {
               return _ErrorRetry(
@@ -299,6 +241,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           child: ProductArtwork(
                             category: product.category,
                             height: 44,
+                            image: product.primaryImage,
                           ),
                         ),
                       ),

@@ -25,15 +25,7 @@ class PrimaryButton extends StatelessWidget {
         minimumSize: const Size.fromHeight(52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      child: busy
-          ? const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : Text(label, style: const TextStyle(fontWeight: FontWeight.w400)),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w400)),
     ),
   );
 }

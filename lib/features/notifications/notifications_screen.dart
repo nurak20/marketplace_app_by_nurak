@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/empty_state.dart';
+import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/show_error.dart';
 import '../../core/models.dart';
 
@@ -28,10 +29,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _markRead(int id) async {
     setState(() => _marking.add(id));
     try {
+      final page = await _notifications;
       await api.markNotificationRead(id);
       if (mounted) {
         setState(() {
-          _load();
+          _notifications = Future.value(
+            page.withItems(
+              page.items
+                  .map((item) => item.id == id ? item.withRead(true) : item)
+                  .toList(),
+            ),
+          );
         });
       }
     } catch (error) {
@@ -43,12 +51,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Notifications')),
+    appBar: const MarketplaceAppBar(
+      title: 'Notifications',
+      showNotifications: false,
+    ),
     body: FutureBuilder<ApiPage<MarketplaceNotification>>(
       future: _notifications,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         if (snapshot.hasError) {
           return _NotificationError(

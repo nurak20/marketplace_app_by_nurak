@@ -5,15 +5,21 @@ import '../app_theme.dart';
 import '../models.dart';
 
 class UserAvatar extends StatelessWidget {
-  const UserAvatar({super.key, required this.profile, this.radius = 22});
+  const UserAvatar({
+    super.key,
+    required this.profile,
+    this.radius = 22,
+    this.size,
+  });
 
   final UserProfile? profile;
   final double radius;
+  final double? size;
 
   @override
   Widget build(BuildContext context) {
-    final diameter = radius * 2;
-    final avatarUrl = profile?.avatarUrl?.trim();
+    final diameter = size ?? radius * 2;
+    final avatarUrl = profile?.avatar?.url.trim();
     final name = profile?.displayName.trim() ?? '';
     final initials = name
         .split(RegExp(r'\s+'))
@@ -23,8 +29,8 @@ class UserAvatar extends StatelessWidget {
         .join();
     final fallback = initials.isEmpty
         ? Icon(
-            Icons.person_outline_rounded,
-            size: StyleColor.iconSize,
+            Icons.person_rounded,
+            size: diameter * 0.62,
             color: StyleColor.ink,
           )
         : Text(

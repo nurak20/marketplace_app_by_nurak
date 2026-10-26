@@ -40,18 +40,18 @@ class MarketplacePostCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: FutureBuilder<UserProfile?>(
-              future: api.profileSummary(sellerId),
-              builder: (context, snapshot) {
-                final seller = snapshot.data;
-                final hasAvatar = seller?.avatarUrl?.isNotEmpty == true;
+            child: Builder(
+              builder: (context) {
+                final seller = post.seller;
+                final avatar = seller?.avatar;
+                final hasAvatar = avatar?.url.isNotEmpty == true;
                 return Row(
                   children: [
                     CircleAvatar(
                       radius: 22,
                       backgroundColor: StyleColor.canvas,
                       backgroundImage: hasAvatar
-                          ? NetworkImage(api.resolveUrl(seller!.avatarUrl!))
+                          ? NetworkImage(api.resolveUrl(avatar!.url))
                           : null,
                       onBackgroundImageError: hasAvatar ? (_, _) {} : null,
                       child: hasAvatar
@@ -124,7 +124,7 @@ class MarketplacePostCard extends StatelessWidget {
                                 child: ProductArtwork(
                                   category: product.category,
                                   height: 164,
-                                  productId: product.id,
+                                  image: product.primaryImage,
                                 ),
                               ),
                               Positioned(
@@ -217,22 +217,15 @@ class MarketplacePostCard extends StatelessWidget {
                                     onPressed: isLiking(post, product)
                                         ? null
                                         : () => onLike(post, product),
-                                    icon: isLiking(post, product)
-                                        ? const SizedBox.square(
-                                            dimension: 15,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : Icon(
-                                            isLiked(post, product)
-                                                ? Icons.thumb_up_rounded
-                                                : Icons.thumb_up_outlined,
-                                            color: isLiked(post, product)
-                                                ? StyleColor.teal
-                                                : StyleColor.muted,
-                                            size: StyleColor.iconSize,
-                                          ),
+                                    icon: Icon(
+                                      isLiked(post, product)
+                                          ? Icons.thumb_up_rounded
+                                          : Icons.thumb_up_outlined,
+                                      color: isLiked(post, product)
+                                          ? StyleColor.teal
+                                          : StyleColor.muted,
+                                      size: StyleColor.iconSize,
+                                    ),
                                     label: Text(
                                       'Like',
                                       style: TextStyle(

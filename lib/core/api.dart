@@ -1,22 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'components/global_popup_dialog.dart';
 import 'models.dart';
-import 'profile_provider.dart';
+import 'singleton.dart';
 import 'session_store.dart';
 
 /// The app-wide API singleton. All feature screens use the same Dio client.
 final Api api = Api.instance;
 
 class Api {
-  Api._()
-    : dio = Dio(
-        BaseOptions(baseUrl: _baseUrl, headers: {'Accept': 'application/json'}),
-      ) {
+  static const _loadingHandleExtra = '_marketplace_loading_handle';
+
+  Api._() : dio = Dio(BaseOptions(headers: {'Accept': 'application/json'})) {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
@@ -24,9 +24,21 @@ class Api {
           if (token != null && !options.path.startsWith('/auth/')) {
             options.headers['Authorization'] = 'Bearer $token';
           }
+          if (options.extra['loading'] != false) {
+            final content = options.extra['loadingContent'];
+            options.extra[_loadingHandleExtra] =
+                GlobalPopupDialog.showRequestLoading(
+                  content: content is String ? content : 'Loading....',
+                );
+          }
           handler.next(options);
         },
+        onResponse: (response, handler) {
+          _finishLoading(response.requestOptions);
+          handler.next(response);
+        },
         onError: (error, handler) {
+          _finishLoading(error.requestOptions);
           if (error.response?.statusCode == 401 &&
               !error.requestOptions.path.startsWith('/auth/')) {
             unawaited(SessionStore.instance.clear());
@@ -37,26 +49,52 @@ class Api {
     );
   }
 
-  static final Api instance = Api._();
-  static const _baseUrlKey = 'marketplace.api_base_url';
-  final Dio dio;
-  final Map<int, Future<String?>> _primaryProductImages = {};
-  final Map<int, Future<UserProfile?>> _profileCache = {};
-
-  static String get _baseUrl {
-    const configured = String.fromEnvironment('API_BASE_URL');
-    if (configured.isNotEmpty) return configured;
-    return 'http://${!kIsWeb && defaultTargetPlatform == TargetPlatform.android ? '10.0.2.2' : 'localhost'}:8081/api/v1';
+  void _finishLoading(RequestOptions options) {
+    final handle = options.extra.remove(_loadingHandleExtra);
+    if (handle is LoadingDialogHandle) handle.close();
   }
+
+  static final Api instance = Api._();
+  final Dio dio;
 
   String get baseUrl => dio.options.baseUrl;
 
   Future<void> initialize() async {
-    if (!kDebugMode) return;
-    final preferences = await SharedPreferences.getInstance();
-    final saved = preferences.getString(_baseUrlKey);
-    final validSaved = saved == null ? null : validateBaseUrl(saved);
-    if (validSaved != null) dio.options.baseUrl = validSaved;
+    final environmentBaseUrl = await _loadEnvironmentBaseUrl();
+    final baseUrl = environmentBaseUrl == null
+        ? null
+        : validateBaseUrl(environmentBaseUrl);
+    if (baseUrl == null) {
+      throw const FormatException(
+        'API_BASE_URL is missing or invalid in the root .env file.',
+      );
+    }
+    dio.options.baseUrl = baseUrl;
+  }
+
+  Future<String?> _loadEnvironmentBaseUrl() async {
+    try {
+      final contents = await rootBundle.loadString('.env');
+      for (final line in contents.split(RegExp(r'\r?\n'))) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+        final separator = trimmed.indexOf('=');
+        if (separator < 0 ||
+            trimmed.substring(0, separator).trim() != 'API_BASE_URL') {
+          continue;
+        }
+        var value = trimmed.substring(separator + 1).trim();
+        if (value.length >= 2 &&
+            ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'")))) {
+          value = value.substring(1, value.length - 1).trim();
+        }
+        return value.isEmpty ? null : value;
+      }
+    } catch (_) {
+      // Return null so initialize() can report a clear configuration error.
+    }
+    return null;
   }
 
   Future<void> configureBaseUrl(String value) async {
@@ -64,13 +102,6 @@ class Api {
     if (validated == null) throw const FormatException('Invalid API URL');
 
     dio.options.baseUrl = validated;
-    _primaryProductImages.clear();
-    _profileCache.clear();
-
-    if (kDebugMode) {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(_baseUrlKey, validated);
-    }
   }
 
   static String? validateBaseUrl(String value) {
@@ -124,7 +155,7 @@ class Api {
     final account = Account.fromJson(
       asJsonMap(await _request(() => dio.get('/users/me'))),
     );
-    profileProvider.setAccount(account);
+    Singleton.instance.setAccount(account);
     return account;
   }
 
@@ -139,22 +170,12 @@ class Api {
       ),
     );
     final account = Account.fromJson(asJsonMap(response));
-    profileProvider.setAccount(account);
-    _profileCache.remove(account.profile.id);
+    Singleton.instance.setAccount(account);
     return account;
   }
 
   Future<JsonMap> profile(int userId) async =>
       asJsonMap(await _request(() => dio.get('/users/$userId')));
-
-  Future<UserProfile?> profileSummary(int userId) =>
-      _profileCache.putIfAbsent(userId, () async {
-        try {
-          return UserProfile.fromJson(await profile(userId));
-        } catch (_) {
-          return null;
-        }
-      });
 
   Future<ApiPage<Product>> products({
     String? keyword,
@@ -169,7 +190,7 @@ class Api {
     if (keyword?.trim().isNotEmpty == true) query['keyword'] = keyword!.trim();
     if (category != null && category != 'All') query['category'] = category;
     if (sellerId != null) query['sellerId'] = sellerId;
-    return ApiPage.fromJson(
+    return ApiPage<Product>.fromJson(
       asJsonMap(
         await _request(() => dio.get('/products', queryParameters: query)),
       ),
@@ -185,9 +206,12 @@ class Api {
     asJsonMap(await _request(() => dio.post('/products', data: body))),
   );
 
-  Future<void> uploadProductImage(int productId, XFile image) async {
+  Future<MarketplaceImage?> uploadProductImage(
+    int productId,
+    XFile image,
+  ) async {
     final bytes = await image.readAsBytes();
-    await _request(
+    final response = await _request(
       () => dio.post(
         '/products/$productId/images',
         data: FormData.fromMap({
@@ -195,7 +219,7 @@ class Api {
         }),
       ),
     );
-    _primaryProductImages.remove(productId);
+    return MarketplaceImage.fromResponse(response);
   }
 
   Future<void> setProductStatus(int id, String status) async {
@@ -204,28 +228,15 @@ class Api {
     );
   }
 
-  Future<List<ProductImage>> images(int id) async =>
-      ((await _request(() => dio.get('/products/$id/images')) as List?) ??
-              const [])
-          .whereType<Map>()
-          .map((item) => ProductImage.fromJson(Map<String, dynamic>.from(item)))
-          .toList();
-
-  Future<String?> primaryProductImage(int productId) =>
-      _primaryProductImages.putIfAbsent(productId, () async {
-        try {
-          final productImages = await images(productId);
-          if (productImages.isEmpty) return null;
-          return productImages
-              .firstWhere(
-                (image) => image.primary,
-                orElse: () => productImages.first,
-              )
-              .url;
-        } catch (_) {
-          return null;
-        }
-      });
+  Future<List<MarketplaceImage>> images(int id) async =>
+      MarketplaceImage.listFromResponse(
+        await _request(
+          () => dio.get(
+            '/products/$id/images',
+            options: Options(extra: {'loading': false}),
+          ),
+        ),
+      );
 
   Future<ApiPage<Review>> reviews(int id) async => ApiPage.fromJson(
     asJsonMap(
@@ -239,31 +250,42 @@ class Api {
     Review.fromJson,
   );
 
-  Future<ApiPage<MarketplacePost>> posts({int size = 50}) async =>
-      ApiPage.fromJson(
-        asJsonMap(
-          await _request(
-            () => dio.get(
-              '/posts',
-              queryParameters: {
-                'page': 0,
-                'size': size,
-                'sort': 'createdAt,desc',
-              },
-            ),
-          ),
-        ),
-        MarketplacePost.fromJson,
-      );
+  Future<ApiPage<MarketplacePost>> posts({int size = 50, int? userId}) async {
+    final query = <String, dynamic>{
+      'page': 0,
+      'size': size,
+      'sort': 'createdAt,desc',
+      if (userId != null) 'userId': userId,
+    };
+    return ApiPage<MarketplacePost>.fromJson(
+      asJsonMap(
+        await _request(() => dio.get('/posts', queryParameters: query)),
+      ),
+      MarketplacePost.fromJson,
+    );
+  }
+
+  Future<MarketplacePost> post(int id) async => MarketplacePost.fromJson(
+    asJsonMap(await _request(() => dio.get('/posts/$id'))),
+  );
 
   Future<void> reactToPost(int id) async {
     await _request(
-      () => dio.put('/posts/$id/reaction', data: {'reactionType': 'LIKE'}),
+      () => dio.put(
+        '/posts/$id/reaction',
+        data: {'reactionType': 'LIKE'},
+        options: Options(extra: {'loading': false}),
+      ),
     );
   }
 
   Future<void> unreactToPost(int id) async {
-    await _request(() => dio.delete('/posts/$id/reaction'));
+    await _request(
+      () => dio.delete(
+        '/posts/$id/reaction',
+        options: Options(extra: {'loading': false}),
+      ),
+    );
   }
 
   Future<void> reactToPostProduct(int postId, int productId) async {
@@ -271,13 +293,17 @@ class Api {
       () => dio.put(
         '/posts/$postId/products/$productId/reaction',
         data: {'reactionType': 'LIKE'},
+        options: Options(extra: {'loading': false}),
       ),
     );
   }
 
   Future<void> unreactToPostProduct(int postId, int productId) async {
     await _request(
-      () => dio.delete('/posts/$postId/products/$productId/reaction'),
+      () => dio.delete(
+        '/posts/$postId/products/$productId/reaction',
+        options: Options(extra: {'loading': false}),
+      ),
     );
   }
 
@@ -311,6 +337,41 @@ class Api {
       () => dio.post(
         '/posts',
         data: {'content': content, 'productIds': productIds},
+      ),
+    );
+  }
+
+  Future<MarketplacePost> createListing(
+    JsonMap payload,
+    List<XFile> images,
+  ) async {
+    final form = FormData();
+    form.files.add(
+      MapEntry(
+        'payload',
+        MultipartFile.fromString(
+          jsonEncode(payload),
+          contentType: DioMediaType.parse('application/json'),
+        ),
+      ),
+    );
+    for (final image in images) {
+      form.files.add(
+        MapEntry(
+          'files',
+          MultipartFile.fromBytes(
+            await image.readAsBytes(),
+            filename: image.name,
+          ),
+        ),
+      );
+    }
+
+    return MarketplacePost.fromJson(
+      asJsonMap(
+        await _request(
+          () => dio.post('/posts/listing', data: form),
+        ),
       ),
     );
   }
@@ -375,14 +436,16 @@ class Api {
     );
   }
 
-  Future<ApiPage<Product>> wishlist() async => ApiPage.fromJson(
-    asJsonMap(
-      await _request(
-        () => dio.get('/wishlist', queryParameters: {'page': 0, 'size': 30}),
+  Future<ApiPage<Product>> wishlist() async {
+    return ApiPage<Product>.fromJson(
+      asJsonMap(
+        await _request(
+          () => dio.get('/wishlist', queryParameters: {'page': 0, 'size': 30}),
+        ),
       ),
-    ),
-    Product.fromJson,
-  );
+      Product.fromJson,
+    );
+  }
 
   Future<void> saveProduct(int id) async {
     await _request(() => dio.put('/wishlist/$id'));

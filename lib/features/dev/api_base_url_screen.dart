@@ -37,7 +37,7 @@ class _ApiBaseUrlScreenState extends State<ApiBaseUrlScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _error = 'Could not save the API URL. Please try again.';
+          _error = 'Could not apply the API URL. Please try again.';
           _saving = false;
         });
       }
@@ -69,6 +69,41 @@ class _ApiBaseUrlScreenState extends State<ApiBaseUrlScreen> {
                         'lib/assets/logo/mk27_app_logo.png',
                         width: 112,
                         height: 112,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: StyleColor.teal.withValues(alpha: .1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.construction_rounded,
+                                size: 16,
+                                color: StyleColor.teal,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'NOW UNDER DEVELOPMENT',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: StyleColor.teal,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: .7,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -108,7 +143,7 @@ class _ApiBaseUrlScreenState extends State<ApiBaseUrlScreen> {
                         if (_error != null) setState(() => _error = null);
                       },
                       decoration: const InputDecoration(
-                        hintText: 'http://192.168.1.20:8081/api/v1',
+                        hintText: 'http://localhost:7001/api/v1',
                         prefixIcon: Icon(Icons.link),
                       ),
                     ),
@@ -123,21 +158,26 @@ class _ApiBaseUrlScreenState extends State<ApiBaseUrlScreen> {
                     ],
                     const SizedBox(height: 12),
                     const Text(
-                      'On a real phone, use your computer’s LAN IP address. '
-                      'Keep both devices on the same Wi-Fi. The URL is saved '
-                      'and shown again the next time you open the app.',
+                      'On a real phone, enter your computer’s LAN IP address '
+                      'and keep both devices on the same Wi-Fi. If you switch '
+                      'networks, change the .env value and restart the app. '
+                      'This screen applies a temporary debug override.',
                       style: TextStyle(color: StyleColor.muted, height: 1.45),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Open this screen from your profile to edit the API URL.',
+                      style: TextStyle(
+                        color: StyleColor.muted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
                       onPressed: _saving ? null : _continue,
-                      icon: _saving
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.arrow_forward),
-                      label: Text(_saving ? 'Saving…' : 'Save and continue'),
+                      icon: const Icon(Icons.arrow_forward),
+                      label: Text(_saving ? 'Applying…' : 'Apply and continue'),
                     ),
                   ],
                 ),
