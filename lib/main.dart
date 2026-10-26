@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 
 import 'core/api.dart';
 import 'core/app_theme.dart';
@@ -154,6 +155,9 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
   Widget build(BuildContext context) => MaterialApp.router(
     title: 'Nurak MK27',
     theme: buildAppTheme(),
+    builder: (context, child) => AdaptiveToolbarHost(
+      child: child ?? const SizedBox.shrink(),
+    ),
     routerConfig: _router,
     debugShowCheckedModeBanner: false,
   );

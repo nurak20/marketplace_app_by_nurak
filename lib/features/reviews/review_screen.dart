@@ -50,7 +50,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Write a review',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),
@@ -171,7 +171,7 @@ class _ProductReviewsScreenState extends State<ProductReviewsScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Reviews',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

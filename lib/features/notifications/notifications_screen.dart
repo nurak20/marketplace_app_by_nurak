@@ -54,7 +54,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Notifications',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

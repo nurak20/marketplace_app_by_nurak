@@ -188,7 +188,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Create account',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

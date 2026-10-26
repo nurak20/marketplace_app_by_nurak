@@ -142,7 +142,7 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Comments',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

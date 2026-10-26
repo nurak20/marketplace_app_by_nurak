@@ -106,7 +106,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Product details',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

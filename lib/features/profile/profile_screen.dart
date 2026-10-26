@@ -115,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Me',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

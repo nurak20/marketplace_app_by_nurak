@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 
 import '../core/app_theme.dart';
+import '../core/components/adaptive_safe_body.dart';
 import 'bottom_navigation_visibility.dart';
 
 const _destinations = <_AppNavigationDestination>[
@@ -63,30 +64,73 @@ class _AppShellState extends State<AppShell> {
 
     return ValueListenableBuilder<bool>(
       valueListenable: bottomNavigationVisible,
-      builder: (context, requestedVisible, _) {
+      builder: (context, showNavigation, _) {
         final showBar =
-            requestedVisible && MediaQuery.viewInsetsOf(context).bottom == 0;
+            showNavigation && MediaQuery.viewInsetsOf(context).bottom == 0;
+        final pageBody = AdaptiveSafeBody(child: widget.child);
+
+        if (PlatformInfo.isIOS26OrHigher()) {
+          return AdaptiveScaffold(
+            body: pageBody,
+            extendBody: true,
+            enableBlur: true,
+            minimizeBehavior: TabBarMinimizeBehavior.never,
+            bottomNavigationBar: showBar
+                ? AdaptiveBottomNavigationBar(
+                    items: const [
+                      AdaptiveNavigationDestination(
+                        icon: 'house',
+                        selectedIcon: 'house.fill',
+                        label: 'Home',
+                      ),
+                      AdaptiveNavigationDestination(
+                        icon: 'heart',
+                        selectedIcon: 'heart.fill',
+                        label: 'Favorite',
+                      ),
+                      AdaptiveNavigationDestination(
+                        icon: 'plus.square',
+                        selectedIcon: 'plus.square.fill',
+                        label: 'Create',
+                      ),
+                      AdaptiveNavigationDestination(
+                        icon: 'bubble.left',
+                        selectedIcon: 'bubble.left.fill',
+                        label: 'Message',
+                      ),
+                      AdaptiveNavigationDestination(
+                        icon: 'person.crop.circle',
+                        selectedIcon: 'person.crop.circle.fill',
+                        label: 'User',
+                      ),
+                    ],
+                    selectedIndex: selectedIndex,
+                    onTap: (index) => context.go(_destinations[index].location),
+                    useNativeBottomBar: true,
+                    selectedItemColor: const Color(0xFF2563EB),
+                    unselectedItemColor: const Color(0xFF25282B),
+                  )
+                : null,
+          );
+        }
 
         return Scaffold(
-          // Let the page show through around the floating glass navigation pill.
-          // Page content includes a trailing clearance spacer for safe scrolling.
-          extendBody: true,
-          body: ClipRect(child: widget.child),
+          extendBody: false,
+          body: ClipRect(child: pageBody),
           bottomNavigationBar: showBar
               ? Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                   child: SafeArea(
                     top: false,
-                    bottom: true,
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(40),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.55),
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.10),
+                            color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 20,
                             offset: const Offset(0, 7),
                           ),
@@ -154,7 +198,8 @@ class _BottomNavigationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? StyleColor.ink : StyleColor.muted;
+    const selectedColor = Color(0xFF2563EB);
+    final color = selected ? selectedColor : const Color(0xFF25282B);
 
     return Semantics(
       button: true,

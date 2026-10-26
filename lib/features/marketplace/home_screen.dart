@@ -223,10 +223,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
-    appBar: const MarketplaceAppBar(
-      title: 'Chat',
-      showNotifications: false,
-      showProfileAvatar: false,
+    appBar: MarketplaceAppBar(
+      title: 'Nurak MK27',
+      actions: [
+        AdaptiveAppBarAction(
+          iosSymbol: 'magnifyingglass',
+          icon: Icons.search_rounded,
+          label: 'Search',
+          onPressed: _openSearch,
+        ),
+      ],
     ).build(context),
     body: AdaptiveSafeBody(
       child: RefreshIndicator(

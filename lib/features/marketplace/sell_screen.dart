@@ -288,7 +288,7 @@ class _SellScreenState extends State<SellScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Create a post',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

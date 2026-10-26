@@ -60,7 +60,7 @@ class _SavedScreenState extends State<SavedScreen> {
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
     appBar: const MarketplaceAppBar(
-      title: 'Chat',
+      title: 'Favorite',
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),

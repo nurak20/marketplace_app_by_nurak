@@ -35,7 +35,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   @override
   Widget build(BuildContext context) => AdaptiveScaffold(
-    appBar: const MarketplaceAppBar(title: 'Home').build(context),
+    appBar: const MarketplaceAppBar(title: 'Messages').build(context),
 
     body: AdaptiveSafeBody(
       child: FutureBuilder<List<MarketplaceMessage>>(
