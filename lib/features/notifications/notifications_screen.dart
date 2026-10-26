@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
-import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/show_error.dart';
@@ -58,76 +57,73 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),
-    body: AdaptiveSafeBody(
-      child: FutureBuilder<ApiPage<MarketplaceNotification>>(
-        future: _notifications,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox.shrink();
-          }
-          if (snapshot.hasError) {
-            return _NotificationError(
-              error: snapshot.error!,
-              onRetry: () => setState(() {
-                _load();
-              }),
-            );
-          }
-          final items =
-              snapshot.data?.items ?? const <MarketplaceNotification>[];
-          if (items.isEmpty) {
-            return const EmptyState(
-              title: 'You are all caught up',
-              message:
-                  'We will let you know when something needs your attention.',
-              icon: Icons.notifications_none_rounded,
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: items.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(height: 9),
-            itemBuilder: (context, index) {
-              if (index == items.length) {
-                return const SizedBox(
-                  height: StyleSpacing.bottomContentClearance,
-                );
-              }
-              final item = items[index];
-              return Card(
-                color: item.isRead ? Colors.white : StyleColor.unreadSurface,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: StyleColor.accent.withValues(alpha: .25),
-                    child: Icon(_iconFor(item.type), color: StyleColor.ink),
-                  ),
-                  title: Text(
-                    item.message,
-                    style: TextStyle(fontWeight: FontWeight.w400),
-                  ),
-                  subtitle: Text(
-                    item.type.replaceAll('_', ' ').toLowerCase(),
-                    style: const TextStyle(color: StyleColor.muted),
-                  ),
-                  trailing: item.isRead
-                      ? null
-                      : IconButton(
-                          tooltip: 'Mark as read',
-                          onPressed: _marking.contains(item.id)
-                              ? null
-                              : () => _markRead(item.id),
-                          icon: const Icon(Icons.done_rounded),
-                        ),
-                ),
-              );
-            },
+    body: FutureBuilder<ApiPage<MarketplaceNotification>>(
+      future: _notifications,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        if (snapshot.hasError) {
+          return _NotificationError(
+            error: snapshot.error!,
+            onRetry: () => setState(() {
+              _load();
+            }),
           );
-        },
-      ),
+        }
+        final items = snapshot.data?.items ?? const <MarketplaceNotification>[];
+        if (items.isEmpty) {
+          return const EmptyState(
+            title: 'You are all caught up',
+            message:
+                'We will let you know when something needs your attention.',
+            icon: Icons.notifications_none_rounded,
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length + 1,
+          separatorBuilder: (_, _) => const SizedBox(height: 9),
+          itemBuilder: (context, index) {
+            if (index == items.length) {
+              return const SizedBox(
+                height: StyleSpacing.bottomContentClearance,
+              );
+            }
+            final item = items[index];
+            return Card(
+              color: item.isRead ? Colors.white : StyleColor.unreadSurface,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                leading: CircleAvatar(
+                  backgroundColor: StyleColor.accent.withValues(alpha: .25),
+                  child: Icon(_iconFor(item.type), color: StyleColor.ink),
+                ),
+                title: Text(
+                  item.message,
+                  style: TextStyle(fontWeight: FontWeight.w400),
+                ),
+                subtitle: Text(
+                  item.type.replaceAll('_', ' ').toLowerCase(),
+                  style: const TextStyle(color: StyleColor.muted),
+                ),
+                trailing: item.isRead
+                    ? null
+                    : IconButton(
+                        tooltip: 'Mark as read',
+                        onPressed: _marking.contains(item.id)
+                            ? null
+                            : () => _markRead(item.id),
+                        icon: const Icon(Icons.done_rounded),
+                      ),
+              ),
+            );
+          },
+        );
+      },
     ),
   );
 

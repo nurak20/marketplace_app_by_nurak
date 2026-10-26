@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
-import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/choose_image_bottom_sheet.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/primary_button.dart';
@@ -45,6 +44,10 @@ class _SellScreenState extends State<SellScreen> {
   final _caption = TextEditingController();
   final List<_ProductDraft> _products = [_ProductDraft()];
   bool _busy = false;
+
+  // Built once so the text fields always get the 0.5 / 1 border theme,
+  // even when the adaptive scaffold does not pass the Material theme down.
+  final ThemeData _theme = buildAppTheme();
 
   @override
   void dispose() {
@@ -292,47 +295,51 @@ class _SellScreenState extends State<SellScreen> {
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),
-    body: AdaptiveSafeBody(
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-          children: [
-            AbsorbPointer(
-              absorbing: _busy,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _caption,
-                    minLines: 1,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Post message (optional)',
-                      hintText: 'Write a message for these products',
+    body: Theme(
+      data: _theme,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+            children: [
+              AbsorbPointer(
+                absorbing: _busy,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _caption,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Post message (optional)',
+                        hintText: 'Write a message for these products',
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  for (var i = 0; i < _products.length; i++) ...[
-                    _productEditor(_products[i], i),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+                    for (var i = 0; i < _products.length; i++) ...[
+                      _productEditor(_products[i], i),
+                      const SizedBox(height: 12),
+                    ],
+                    OutlinedButton.icon(
+                      onPressed: _addProduct,
+                      icon: const Icon(Icons.add_circle_outline_rounded),
+                      label: const Text('Add another product'),
+                    ),
                   ],
-                  OutlinedButton.icon(
-                    onPressed: _addProduct,
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                    label: const Text('Add another product'),
-                  ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            PrimaryButton(
-              label:
-                  'Publish ${_products.length} product${_products.length == 1 ? '' : 's'} in one post',
-              busy: _busy,
-              onPressed: _publish,
-            ),
-            const SizedBox(height: StyleSpacing.bottomContentClearance),
-          ],
+              const SizedBox(height: 14),
+              PrimaryButton(
+                label:
+                    'Publish ${_products.length} product${_products.length == 1 ? '' : 's'} in one post',
+                busy: _busy,
+                onPressed: _publish,
+              ),
+              const SizedBox(height: StyleSpacing.bottomContentClearance),
+            ],
+          ),
         ),
       ),
     ),

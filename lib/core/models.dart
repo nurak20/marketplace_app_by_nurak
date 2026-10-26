@@ -53,6 +53,12 @@ class Product {
     this.images = const [],
     this.seller,
     this.isSaved = false,
+    this.totalLike = 0,
+    this.totalComment = 0,
+    this.hasLiked = false,
+    this.postByUser,
+    this.reviews = const [],
+    this.comments = const [],
   });
 
   final int id;
@@ -67,6 +73,12 @@ class Product {
   final List<MarketplaceImage> images;
   final UserProfile? seller;
   final bool isSaved;
+  final int totalLike;
+  final int totalComment;
+  final bool hasLiked;
+  final UserProfile? postByUser;
+  final List<Review> reviews;
+  final List<PostComment> comments;
 
   MarketplaceImage? get primaryImage {
     for (final image in images) {
@@ -80,24 +92,46 @@ class Product {
     return null;
   }
 
-  factory Product.fromJson(JsonMap json) => Product(
-    id: _int(json['id']),
-    sellerId: _int(json['sellerId']),
-    title: '${json['title'] ?? ''}',
-    price: _double(json['price']),
-    status: '${json['status'] ?? 'AVAILABLE'}',
-    description: json['description'] as String?,
-    category: json['category'] as String?,
-    condition: '${json['condition'] ?? 'GOOD'}',
-    location: json['location'] as String?,
-    images: _productImagesFromJson(json),
-    seller: (json['seller'] ?? json['user']) is Map
-        ? UserProfile.fromJson(
-            Map<String, dynamic>.from((json['seller'] ?? json['user']) as Map),
-          )
-        : null,
-    isSaved: json['isSaved'] == true,
-  );
+  factory Product.fromJson(JsonMap json) {
+    final product = json['product'] is Map
+        ? Map<String, dynamic>.from(json['product'] as Map)
+        : json;
+    final seller = product['seller'] ?? product['user'];
+    final postByUser = json['postByUser'] ?? product['postByUser'];
+    return Product(
+      id: _int(product['id']),
+      sellerId: _int(product['sellerId']),
+      title: '${product['title'] ?? ''}',
+      price: _double(product['price']),
+      status: '${product['status'] ?? 'AVAILABLE'}',
+      description: product['description'] as String?,
+      category: product['category'] as String?,
+      condition: '${product['condition'] ?? 'GOOD'}',
+      location: product['location'] as String?,
+      images: _productImagesFromJson(product),
+      seller: seller is Map
+          ? UserProfile.fromJson(Map<String, dynamic>.from(seller))
+          : null,
+      isSaved: product['isSaved'] == true,
+      totalLike: _int(json['totalLike'] ?? product['totalLike']),
+      totalComment: _int(json['totalComment'] ?? product['totalComment']),
+      hasLiked: json['hasLiked'] == true || product['hasLiked'] == true,
+      postByUser: postByUser is Map
+          ? UserProfile.fromJson(Map<String, dynamic>.from(postByUser))
+          : null,
+      reviews: ((json['reviews'] ?? product['reviews']) as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Review.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
+      comments:
+          ((json['comments'] ?? product['comments']) as List? ?? const [])
+              .whereType<Map>()
+              .map(
+                (item) => PostComment.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList(),
+    );
+  }
 }
 
 List<MarketplaceImage> _productImagesFromJson(JsonMap json) {
@@ -394,7 +428,7 @@ class MarketplacePost {
     this.commentCount = 0,
     this.hasReacted = false,
     this.productEngagements = const {},
-    this.seller,
+    this.postByUser,
   });
   final int id;
   final int userId;
@@ -405,7 +439,9 @@ class MarketplacePost {
   final int commentCount;
   final bool hasReacted;
   final Map<int, ProductEngagement> productEngagements;
-  final UserProfile? seller;
+  final UserProfile? postByUser;
+
+  UserProfile? get seller => postByUser;
 
   ProductEngagement engagementFor(Product product) =>
       productEngagements[product.id] ?? const ProductEngagement();
@@ -420,14 +456,15 @@ class MarketplacePost {
     commentCount: commentCount,
     hasReacted: hasReacted,
     productEngagements: productEngagements,
-    seller: seller,
+    postByUser: postByUser,
   );
 
   factory MarketplacePost.fromJson(JsonMap json) {
     final post = json['post'] is Map
         ? Map<String, dynamic>.from(json['post'] as Map)
         : json;
-    final seller =
+    final author =
+        json['postByUser'] ??
         json['seller'] ??
         json['user'] ??
         post['seller'] ??
@@ -444,8 +481,8 @@ class MarketplacePost {
       reactionCount: _int(json['reactionCount']),
       commentCount: _int(json['commentCount']),
       hasReacted: json['hasReacted'] == true,
-      seller: seller is Map
-          ? UserProfile.fromJson(Map<String, dynamic>.from(seller))
+      postByUser: author is Map
+          ? UserProfile.fromJson(Map<String, dynamic>.from(author))
           : null,
       productEngagements: {
         for (final item

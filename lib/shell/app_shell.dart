@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 
 import '../core/app_theme.dart';
-import '../core/components/adaptive_safe_body.dart';
 import 'bottom_navigation_visibility.dart';
 
 const _destinations = <_AppNavigationDestination>[
@@ -67,7 +66,13 @@ class _AppShellState extends State<AppShell> {
       builder: (context, showNavigation, _) {
         final showBar =
             showNavigation && MediaQuery.viewInsetsOf(context).bottom == 0;
-        final pageBody = AdaptiveSafeBody(child: widget.child);
+        // Let each page scaffold handle the status-bar inset; applying it
+        // around the whole scaffold shifts page content down a second time.
+        final pageBody = SafeArea(
+          top: false,
+          bottom: false,
+          child: widget.child,
+        );
 
         if (PlatformInfo.isIOS26OrHigher()) {
           return AdaptiveScaffold(

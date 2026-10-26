@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -15,10 +16,12 @@ import 'features/chats/chat_screens.dart';
 import 'features/dev/api_base_url_screen.dart';
 import 'features/marketplace/marketplace_screens.dart';
 import 'features/marketplace/comments_screen.dart';
+import 'features/marketplace/search_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/reviews/review_screen.dart';
 import 'shell/app_shell.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 CustomTransitionPage<void> _fadeTabPage(GoRouterState state, Widget child) =>
     CustomTransitionPage<void>(
@@ -99,6 +102,14 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
                 _fadeTabPage(state, const ProfileScreen()),
           ),
           GoRoute(
+            path: '/search',
+            pageBuilder: (_, state) => CupertinoPage<void>(
+              key: state.pageKey,
+              fullscreenDialog: true,
+              child: const ProductSearchScreen(),
+            ),
+          ),
+          GoRoute(
             path: '/products/:id',
             builder: (_, state) => ProductDetailScreen(
               productId: int.parse(state.pathParameters['id']!),
@@ -152,13 +163,35 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
+  Widget build(BuildContext context) => AdaptiveApp.router(
     title: 'Nurak MK27',
-    theme: buildAppTheme(),
-    builder: (context, child) =>
-        AdaptiveToolbarHost(child: child ?? const SizedBox.shrink()),
+    themeMode: ThemeMode.system,
+    materialLightTheme: buildAppTheme(),
+    materialDarkTheme: buildAppTheme(),
+    cupertinoLightTheme: MaterialBasedCupertinoThemeData(
+      materialTheme: buildAppTheme(),
+    ),
+    cupertinoDarkTheme: MaterialBasedCupertinoThemeData(
+      materialTheme: buildAppTheme(),
+    ),
+
+    localizationsDelegates: const [
+      GlobalWidgetsLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: const [Locale('en')],
+    builder: (context, child) => Localizations(
+      locale: const Locale('en'),
+      delegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      child: AdaptiveToolbarHost(child: child ?? const SizedBox.shrink()),
+    ),
     routerConfig: _router,
-    debugShowCheckedModeBanner: false,
+    // debugShowCheckedModeBanner: false,
   );
 
   @override

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
-import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
@@ -192,77 +191,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
       showNotifications: false,
       showProfileAvatar: false,
     ).build(context),
-    body: AdaptiveSafeBody(
-      child: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            children: [
-              const _BrandMark(),
-              const SizedBox(height: 22),
-              const Text(
-                'Join your neighborhood marketplace.',
-                style: TextStyle(color: StyleColor.muted),
-              ),
-              const SizedBox(height: 22),
-              TextFormField(
-                controller: _name,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Full name'),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter your name'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _username,
-                decoration: const InputDecoration(labelText: 'Username'),
-                validator: (value) => value == null || value.trim().length < 3
-                    ? 'Use at least 3 characters'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email'),
-                validator: (value) => value == null || !value.contains('@')
-                    ? 'Enter a valid email address'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _password,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Password'),
-                validator: (value) => value == null || value.length < 8
-                    ? 'Use at least 8 characters'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _confirm,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm password',
-                ),
-                validator: (value) =>
-                    value != _password.text ? 'Passwords do not match' : null,
-              ),
-              const SizedBox(height: 24),
-              PrimaryButton(
-                label: 'Create account',
-                busy: _busy,
-                onPressed: _register,
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => context.go('/login'),
-                child: const Text('I already have an account'),
-              ),
-            ],
-          ),
+    body: SafeArea(
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          children: [
+            const _BrandMark(),
+            const SizedBox(height: 22),
+            const Text(
+              'Join your neighborhood marketplace.',
+              style: TextStyle(color: StyleColor.muted),
+            ),
+            const SizedBox(height: 22),
+            TextFormField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Full name'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter your name'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _username,
+              decoration: const InputDecoration(labelText: 'Username'),
+              validator: (value) => value == null || value.trim().length < 3
+                  ? 'Use at least 3 characters'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Email'),
+              validator: (value) => value == null || !value.contains('@')
+                  ? 'Enter a valid email address'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _password,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+              validator: (value) => value == null || value.length < 8
+                  ? 'Use at least 8 characters'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _confirm,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Confirm password'),
+              validator: (value) =>
+                  value != _password.text ? 'Passwords do not match' : null,
+            ),
+            const SizedBox(height: 24),
+            PrimaryButton(
+              label: 'Create account',
+              busy: _busy,
+              onPressed: _register,
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => context.go('/login'),
+              child: const Text('I already have an account'),
+            ),
+          ],
         ),
       ),
     ),

@@ -182,6 +182,7 @@ class Api {
     String? keyword,
     String? category,
     int? sellerId,
+    String? status,
   }) async {
     final query = <String, dynamic>{
       'page': 0,
@@ -191,16 +192,27 @@ class Api {
     if (keyword?.trim().isNotEmpty == true) query['keyword'] = keyword!.trim();
     if (category != null && category != 'All') query['category'] = category;
     if (sellerId != null) query['sellerId'] = sellerId;
+    if (status != null) query['status'] = status;
     return ApiPage<Product>.fromJson(
       asJsonMap(
-        await _request(() => dio.get('/products', queryParameters: query)),
+        await _request(
+          () => dio.get(
+            '/products',
+            queryParameters: query,
+            options: Options(extra: {'loading': false}),
+          ),
+        ),
       ),
       Product.fromJson,
     );
   }
 
-  Future<Product> product(int id) async => Product.fromJson(
-    asJsonMap(await _request(() => dio.get('/products/$id'))),
+  Future<Product> product(int id, {int? postId}) async => Product.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get('/products/$id', queryParameters: {'postId': ?postId}),
+      ),
+    ),
   );
 
   Future<Product> createProduct(JsonMap body) async => Product.fromJson(
