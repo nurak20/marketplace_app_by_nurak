@@ -155,9 +155,8 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
   Widget build(BuildContext context) => MaterialApp.router(
     title: 'Nurak MK27',
     theme: buildAppTheme(),
-    builder: (context, child) => AdaptiveToolbarHost(
-      child: child ?? const SizedBox.shrink(),
-    ),
+    builder: (context, child) =>
+        AdaptiveToolbarHost(child: child ?? const SizedBox.shrink()),
     routerConfig: _router,
     debugShowCheckedModeBanner: false,
   );
