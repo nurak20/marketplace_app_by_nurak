@@ -1,8 +1,10 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/error_retry_panel.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/mk_button.dart';
@@ -102,165 +104,156 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: MarketplaceAppBar(
-      title: 'Product details',
-      actions: [
-        FutureBuilder<Product>(
-          future: _product,
-          builder: (context, snapshot) {
-            final product = snapshot.data;
-            final saved = product == null
-                ? false
-                : _savedOverride ?? product.isSaved;
-            return MKButton(
-              title: saved ? 'Saved' : 'Save item',
-              icon: Icon(saved ? Icons.favorite : Icons.favorite_border),
-              onPressed: product == null || _saving
-                  ? null
-                  : () => _toggleSaved(product),
-              selected: saved,
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: FutureBuilder<Product>(
+        future: _product,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            return ErrorRetryPanel(
+              error: snapshot.error!,
+              onRetry: () => setState(_load),
             );
-          },
-        ),
-      ],
-    ),
-    body: FutureBuilder<Product>(
-      future: _product,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        if (snapshot.hasError) {
-          return ErrorRetryPanel(
-            error: snapshot.error!,
-            onRetry: () => setState(_load),
-          );
-        }
+          }
 
-        final product = snapshot.data!;
-        final seller = product.seller;
-        final currentUserId = Singleton.instance.account?.profile.id;
-        final ownProduct = currentUserId == product.sellerId;
-        final chatRoute = '/chats/${product.sellerId}?productId=${product.id}';
+          final product = snapshot.data!;
+          final seller = product.seller;
+          final currentUserId = Singleton.instance.account?.profile.id;
+          final ownProduct = currentUserId == product.sellerId;
+          final chatRoute =
+              '/chats/${product.sellerId}?productId=${product.id}';
 
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 30),
-          children: [
-            _ProductImageGallery(
-              product: product,
-              currentIndex: _imageIndex,
-              onPageChanged: (index) => setState(() => _imageIndex = index),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              '\$${product.price.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: StyleFont.largeSize,
-                fontWeight: FontWeight.w400,
-                color: StyleColor.ink,
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 30),
+            children: [
+              _ProductImageGallery(
+                product: product,
+                currentIndex: _imageIndex,
+                onPageChanged: (index) => setState(() => _imageIndex = index),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              product.title,
-              style: const TextStyle(
-                fontSize: StyleFont.largeSize,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                _Tag(text: product.condition.replaceAll('_', ' ')),
-                if (product.category?.isNotEmpty == true)
-                  _Tag(text: product.category!),
-                _Tag(
-                  text: product.status.replaceAll('_', ' '),
-                  highlight: product.status == 'SOLD',
+              const SizedBox(height: 18),
+              Text(
+                '\$${product.price.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: StyleFont.largeSize,
+                  fontWeight: FontWeight.w400,
+                  color: StyleColor.ink,
                 ),
-              ],
-            ),
-            if (product.location?.isNotEmpty == true) ...[
-              const SizedBox(height: 12),
-              Row(
+              ),
+              const SizedBox(height: 4),
+              Text(
+                product.title,
+                style: const TextStyle(
+                  fontSize: StyleFont.largeSize,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
                 children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: StyleColor.iconSize,
-                    color: StyleColor.muted,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    product.location!,
-                    style: const TextStyle(color: StyleColor.muted),
+                  _Tag(text: product.condition.replaceAll('_', ' ')),
+                  if (product.category?.isNotEmpty == true)
+                    _Tag(text: product.category!),
+                  _Tag(
+                    text: product.status.replaceAll('_', ' '),
+                    highlight: product.status == 'SOLD',
                   ),
                 ],
               ),
-            ],
-            if (product.description?.trim().isNotEmpty == true) ...[
-              const SizedBox(height: 16),
-              Text(product.description!, style: const TextStyle(height: 1.45)),
-            ],
-            const SizedBox(height: 18),
-            Card(
-              child: ListTile(
-                leading: _sellerAvatar(seller),
-                title: Text(
-                  seller?.displayName ?? 'Seller #${product.sellerId}',
-                  style: const TextStyle(fontWeight: FontWeight.w400),
+              if (product.location?.isNotEmpty == true) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: StyleColor.iconSize,
+                      color: StyleColor.muted,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      product.location!,
+                      style: const TextStyle(color: StyleColor.muted),
+                    ),
+                  ],
                 ),
-                subtitle: seller?.location?.isNotEmpty == true
-                    ? Text(seller!.location!)
-                    : null,
-                trailing: ownProduct
-                    ? null
-                    : TextButton.icon(
-                        onPressed: () => context.push(chatRoute),
-                        icon: const Icon(Icons.chat_bubble_outline_rounded),
-                        label: const Text('Chat'),
-                      ),
-                onTap: ownProduct ? null : () => context.push(chatRoute),
+              ],
+              if (product.description?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 16),
+                Text(
+                  product.description!,
+                  style: const TextStyle(height: 1.45),
+                ),
+              ],
+              const SizedBox(height: 18),
+              Card(
+                child: ListTile(
+                  leading: _sellerAvatar(seller),
+                  title: Text(
+                    seller?.displayName ?? 'Seller #${product.sellerId}',
+                    style: const TextStyle(fontWeight: FontWeight.w400),
+                  ),
+                  subtitle: seller?.location?.isNotEmpty == true
+                      ? Text(seller!.location!)
+                      : null,
+                  trailing: ownProduct
+                      ? null
+                      : TextButton.icon(
+                          onPressed: () => context.push(chatRoute),
+                          icon: const Icon(Icons.chat_bubble_outline_rounded),
+                          label: const Text('Chat'),
+                        ),
+                  onTap: ownProduct ? null : () => context.push(chatRoute),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (ownProduct && product.status == 'AVAILABLE')
-              PrimaryButton(
-                label: 'Mark as sold',
-                busy: _updatingStatus,
-                onPressed: () => _markSold(product),
-              )
-            else if (!ownProduct && product.status == 'SOLD')
-              PrimaryButton(
-                label: 'Write a review',
-                onPressed: () => context.push('/reviews/${product.id}'),
-              )
-            else if (!ownProduct)
-              PrimaryButton(
-                label: 'Message seller',
-                onPressed: () => context.push(chatRoute),
-              ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => context.push('/products/${product.id}/reviews'),
-              icon: const Icon(Icons.star_outline_rounded),
-              label: const Text('View reviews'),
-            ),
-            if (widget.postId != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+              if (ownProduct && product.status == 'AVAILABLE')
+                PrimaryButton(
+                  label: 'Mark as sold',
+                  busy: _updatingStatus,
+                  onPressed: () => _markSold(product),
+                )
+              else if (!ownProduct && product.status == 'SOLD')
+                PrimaryButton(
+                  label: 'Write a review',
+                  onPressed: () => context.push('/reviews/${product.id}'),
+                )
+              else if (!ownProduct)
+                PrimaryButton(
+                  label: 'Message seller',
+                  onPressed: () => context.push(chatRoute),
+                ),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () => context.push(
-                  '/posts/${widget.postId}/products/${product.id}/comments',
-                ),
-                icon: const Icon(Icons.mode_comment_outlined),
-                label: const Text('View comments'),
+                onPressed: () =>
+                    context.push('/products/${product.id}/reviews'),
+                icon: const Icon(Icons.star_outline_rounded),
+                label: const Text('View reviews'),
               ),
+              if (widget.postId != null) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => context.push(
+                    '/posts/${widget.postId}/products/${product.id}/comments',
+                  ),
+                  icon: const Icon(Icons.mode_comment_outlined),
+                  label: const Text('View comments'),
+                ),
+              ],
+              const SizedBox(height: StyleSpacing.bottomContentClearance),
             ],
-          ],
-        );
-      },
+          );
+        },
+      ),
     ),
   );
 }

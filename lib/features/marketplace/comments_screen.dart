@@ -1,7 +1,9 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
 import '../../core/components/marketplace_app_bar.dart';
@@ -138,88 +140,99 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const MarketplaceAppBar(title: 'Comments'),
-    body: FutureBuilder<ApiPage<PostComment>>(
-      future: _comments,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        if (snapshot.hasError) {
-          return ErrorRetryPanel(
-            error: snapshot.error!,
-            onRetry: () => setState(_load),
-          );
-        }
-        final comments = snapshot.data?.items ?? const <PostComment>[];
-        return Column(
-          children: [
-            Expanded(
-              child: comments.isEmpty
-                  ? const EmptyState(
-                      title: 'No comments yet',
-                      message: 'Start the conversation about this listing.',
-                      icon: Icons.mode_comment_outlined,
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-                      children: comments.map(_commentTile).toList(),
-                    ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-                child: Column(
-                  children: [
-                    if (_replyTo != null)
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: FutureBuilder<ApiPage<PostComment>>(
+        future: _comments,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            return ErrorRetryPanel(
+              error: snapshot.error!,
+              onRetry: () => setState(_load),
+            );
+          }
+          final comments = snapshot.data?.items ?? const <PostComment>[];
+          return Column(
+            children: [
+              Expanded(
+                child: comments.isEmpty
+                    ? const EmptyState(
+                        title: 'No comments yet',
+                        message: 'Start the conversation about this listing.',
+                        icon: Icons.mode_comment_outlined,
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(
+                          14,
+                          14,
+                          14,
+                          StyleSpacing.bottomContentClearance,
+                        ),
+                        children: comments.map(_commentTile).toList(),
+                      ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                  child: Column(
+                    children: [
+                      if (_replyTo != null)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Replying to ${_replyTo!.displayName}',
+                                style: const TextStyle(color: StyleColor.muted),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => setState(() => _replyTo = null),
+                              tooltip: 'Cancel reply',
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              'Replying to ${_replyTo!.displayName}',
-                              style: const TextStyle(color: StyleColor.muted),
+                            child: TextField(
+                              controller: _composer,
+                              minLines: 1,
+                              maxLines: 3,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _sendComment(),
+                              decoration: InputDecoration(
+                                hintText: _replyTo == null
+                                    ? 'Add a comment'
+                                    : 'Reply to ${_replyTo!.displayName}',
+                              ),
                             ),
                           ),
-                          IconButton(
-                            onPressed: () => setState(() => _replyTo = null),
-                            tooltip: 'Cancel reply',
-                            icon: const Icon(Icons.close_rounded),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _sending ? null : _sendComment,
+                            tooltip: 'Post comment',
+                            icon: const Icon(Icons.send_rounded),
                           ),
                         ],
                       ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _composer,
-                            minLines: 1,
-                            maxLines: 3,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendComment(),
-                            decoration: InputDecoration(
-                              hintText: _replyTo == null
-                                  ? 'Add a comment'
-                                  : 'Reply to ${_replyTo!.displayName}',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          onPressed: _sending ? null : _sendComment,
-                          tooltip: 'Post comment',
-                          icon: const Icon(Icons.send_rounded),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     ),
   );
 

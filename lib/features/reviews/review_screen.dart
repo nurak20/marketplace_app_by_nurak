@@ -1,8 +1,10 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
 import '../../core/components/marketplace_app_bar.dart';
@@ -46,88 +48,95 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const MarketplaceAppBar(title: 'Review this deal'),
-    body: FutureBuilder<Product>(
-      future: _product,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text(Api.errorMessage(snapshot.error!)));
-        }
-        final product = snapshot.data!;
-        return ListView(
-          padding: const EdgeInsets.all(18),
-          children: [
-            Card(
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(10),
-                leading: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: ProductArtwork(
-                      category: product.category,
-                      height: 64,
-                      image: product.primaryImage,
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: FutureBuilder<Product>(
+        future: _product,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text(Api.errorMessage(snapshot.error!)));
+          }
+          final product = snapshot.data!;
+          return ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              Card(
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(10),
+                  leading: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: ProductArtwork(
+                        category: product.category,
+                        height: 64,
+                        image: product.primaryImage,
+                      ),
                     ),
                   ),
-                ),
-                title: Text(
-                  product.title,
-                  style: const TextStyle(fontWeight: FontWeight.w400),
-                ),
-                subtitle: Text('Sold by member #${product.sellerId}'),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Your rating',
-              style: TextStyle(
-                fontWeight: FontWeight.w400,
-                fontSize: StyleFont.mediumSize,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                final value = index + 1;
-                return IconButton(
-                  onPressed: () => setState(() => _rating = value),
-                  tooltip: '$value stars',
-                  iconSize: StyleColor.iconSize,
-                  color: StyleColor.accent,
-                  icon: Icon(
-                    value <= _rating
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
+                  title: Text(
+                    product.title,
+                    style: const TextStyle(fontWeight: FontWeight.w400),
                   ),
-                );
-              }),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _comment,
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                labelText: 'Comment (optional)',
-                alignLabelWithHint: true,
+                  subtitle: Text('Sold by member #${product.sellerId}'),
+                ),
               ),
-            ),
-            const SizedBox(height: 22),
-            PrimaryButton(
-              label: 'Submit review',
-              busy: _busy,
-              onPressed: _submit,
-            ),
-          ],
-        );
-      },
+              const SizedBox(height: 24),
+              const Text(
+                'Your rating',
+                style: TextStyle(
+                  fontWeight: FontWeight.w400,
+                  fontSize: StyleFont.mediumSize,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  final value = index + 1;
+                  return IconButton(
+                    onPressed: () => setState(() => _rating = value),
+                    tooltip: '$value stars',
+                    iconSize: StyleColor.iconSize,
+                    color: StyleColor.accent,
+                    icon: Icon(
+                      value <= _rating
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _comment,
+                minLines: 3,
+                maxLines: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Comment (optional)',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 22),
+              PrimaryButton(
+                label: 'Submit review',
+                busy: _busy,
+                onPressed: _submit,
+              ),
+              const SizedBox(height: StyleSpacing.bottomContentClearance),
+            ],
+          );
+        },
+      ),
     ),
   );
 
@@ -160,71 +169,82 @@ class _ProductReviewsScreenState extends State<ProductReviewsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const MarketplaceAppBar(title: 'Product reviews'),
-    body: FutureBuilder<ApiPage<Review>>(
-      future: _reviews,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        if (snapshot.hasError) {
-          return ErrorRetryPanel(
-            error: snapshot.error!,
-            onRetry: () => setState(_load),
-          );
-        }
-        final reviews = snapshot.data?.items ?? const <Review>[];
-        if (reviews.isEmpty) {
-          return const EmptyState(
-            title: 'No reviews yet',
-            message: 'Reviews will appear here after a completed sale.',
-            icon: Icons.star_outline_rounded,
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          itemCount: reviews.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 9),
-          itemBuilder: (context, index) {
-            final review = reviews[index];
-            return Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        ...List.generate(
-                          5,
-                          (star) => Icon(
-                            star < review.rating
-                                ? Icons.star_rounded
-                                : Icons.star_outline_rounded,
-                            size: StyleColor.iconSize,
-                            color: StyleColor.accent,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          'Buyer #${review.buyerId}',
-                          style: const TextStyle(color: StyleColor.muted),
-                        ),
-                      ],
-                    ),
-                    if (review.comment?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: 7),
-                      Text(review.comment!),
-                    ],
-                  ],
-                ),
-              ),
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: FutureBuilder<ApiPage<Review>>(
+        future: _reviews,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            return ErrorRetryPanel(
+              error: snapshot.error!,
+              onRetry: () => setState(_load),
             );
-          },
-        );
-      },
+          }
+          final reviews = snapshot.data?.items ?? const <Review>[];
+          if (reviews.isEmpty) {
+            return const EmptyState(
+              title: 'No reviews yet',
+              message: 'Reviews will appear here after a completed sale.',
+              icon: Icons.star_outline_rounded,
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            itemCount: reviews.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(height: 9),
+            itemBuilder: (context, index) {
+              if (index == reviews.length) {
+                return const SizedBox(
+                  height: StyleSpacing.bottomContentClearance,
+                );
+              }
+              final review = reviews[index];
+              return Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          ...List.generate(
+                            5,
+                            (star) => Icon(
+                              star < review.rating
+                                  ? Icons.star_rounded
+                                  : Icons.star_outline_rounded,
+                              size: StyleColor.iconSize,
+                              color: StyleColor.accent,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'Buyer #${review.buyerId}',
+                            style: const TextStyle(color: StyleColor.muted),
+                          ),
+                        ],
+                      ),
+                      if (review.comment?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 7),
+                        Text(review.comment!),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     ),
   );
 }

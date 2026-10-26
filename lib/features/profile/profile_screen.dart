@@ -1,7 +1,9 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:marketplace_mobile/core/components/adaptive_safe_body.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
@@ -111,229 +113,211 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: MarketplaceAppBar(
-      title: 'Me',
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
       showNotifications: false,
-      actions: [
-        MKButton(
-          title: 'Chats',
-          icon: const Icon(Icons.chat_bubble_outline_rounded),
-          onPressed: () => context.go('/chats'),
-        ),
-        MKButton(
-          title: 'Favorite',
-          icon: const Icon(Icons.favorite_border_rounded),
-          onPressed: () => context.go('/saved'),
-        ),
-        if (kDebugMode)
-          MKButton(
-            title: 'Change API URL',
-            icon: const Icon(Icons.settings_ethernet_rounded),
-            onPressed: () => context.go('/api-settings'),
-          ),
-        MKButton(
-          title: 'Log out',
-          icon: const Icon(Icons.logout_rounded),
-          onPressed: _logout,
-        ),
-        const SizedBox(width: 4),
-      ],
-    ),
-    body: FutureBuilder<(Account, List<_Listing>)>(
-      future: _profile,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        if (snapshot.hasError) {
-          return _ProfileError(
-            error: snapshot.error!,
-            onRetry: () => setState(_load),
-          );
-        }
-        final (account, listings) = snapshot.data!;
-        final user = account.profile;
-        final avatarUrl = user.avatar?.url;
-        final name = user.displayName;
-        final initials = name
-            .trim()
-            .split(RegExp(r'\s+'))
-            .take(2)
-            .map((part) => part.isEmpty ? '' : part[0].toUpperCase())
-            .join();
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(_load);
-            await _profile;
-          },
-          child: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 120,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            colors: [
-                              StyleColor.ink,
-                              StyleColor.teal,
-                              StyleColor.accent,
-                            ],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: FutureBuilder<(Account, List<_Listing>)>(
+        future: _profile,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            return _ProfileError(
+              error: snapshot.error!,
+              onRetry: () => setState(_load),
+            );
+          }
+          final (account, listings) = snapshot.data!;
+          final user = account.profile;
+          final avatarUrl = user.avatar?.url;
+          final name = user.displayName;
+          final initials = name
+              .trim()
+              .split(RegExp(r'\s+'))
+              .take(2)
+              .map((part) => part.isEmpty ? '' : part[0].toUpperCase())
+              .join();
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(_load);
+              await _profile;
+            },
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 120,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: const LinearGradient(
+                              colors: [
+                                StyleColor.ink,
+                                StyleColor.teal,
+                                StyleColor.accent,
+                              ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
                           ),
                         ),
-                      ),
-                      Transform.translate(
-                        offset: const Offset(0, -36),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Stack(
-                              children: [
-                                CircleAvatar(
-                                  radius: 38,
-                                  backgroundColor: StyleColor.accent,
-                                  child: avatarUrl?.isNotEmpty == true
-                                      ? ClipOval(
-                                          child: Image.network(
-                                            api.resolveUrl(avatarUrl!),
-                                            width: 76,
-                                            height: 76,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) =>
-                                                _AvatarInitials(initials),
+                        Transform.translate(
+                          offset: const Offset(0, -36),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 38,
+                                    backgroundColor: StyleColor.accent,
+                                    child: avatarUrl?.isNotEmpty == true
+                                        ? ClipOval(
+                                            child: Image.network(
+                                              api.resolveUrl(avatarUrl!),
+                                              width: 76,
+                                              height: 76,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) =>
+                                                  _AvatarInitials(initials),
+                                            ),
+                                          )
+                                        : _AvatarInitials(initials),
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Material(
+                                      color: StyleColor.ink,
+                                      shape: const CircleBorder(),
+                                      child: SizedBox(
+                                        width: 32,
+                                        height: 32,
+                                        child: IconButton(
+                                          onPressed: _chooseAvatar,
+                                          tooltip: 'Choose profile photo',
+                                          padding: EdgeInsets.zero,
+                                          icon: const Icon(
+                                            Icons.camera_alt_outlined,
+                                            size: StyleColor.iconSize,
+                                            color: Colors.white,
                                           ),
-                                        )
-                                      : _AvatarInitials(initials),
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Material(
-                                    color: StyleColor.ink,
-                                    shape: const CircleBorder(),
-                                    child: SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: IconButton(
-                                        onPressed: _chooseAvatar,
-                                        tooltip: 'Choose profile photo',
-                                        padding: EdgeInsets.zero,
-                                        icon: const Icon(
-                                          Icons.camera_alt_outlined,
-                                          size: StyleColor.iconSize,
-                                          color: Colors.white,
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 7),
-                                child: Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontSize: StyleFont.largeSize,
-                                    fontWeight: FontWeight.w400,
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 7),
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontSize: StyleFont.largeSize,
+                                      fontWeight: FontWeight.w400,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Transform.translate(
-                        offset: const Offset(0, -28),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              [
-                                if (user.location?.isNotEmpty == true)
-                                  user.location!,
-                                if (account.email?.isNotEmpty == true)
-                                  account.email!,
-                              ].join('  ·  '),
-                              style: const TextStyle(color: StyleColor.muted),
-                            ),
-                            if (user.bio?.isNotEmpty == true) ...[
-                              const SizedBox(height: 8),
-                              Text(user.bio!),
                             ],
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                _StatCard(
-                                  label: 'Listings',
-                                  value: '${listings.length}',
-                                ),
-                                const SizedBox(width: 10),
-                                _StatCard(label: 'Member', value: 'Active'),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Your listings',
-                              style: TextStyle(
-                                fontSize: StyleFont.largeSize,
-                                fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        Transform.translate(
+                          offset: const Offset(0, -28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                [
+                                  if (user.location?.isNotEmpty == true)
+                                    user.location!,
+                                  if (account.email?.isNotEmpty == true)
+                                    account.email!,
+                                ].join('  ·  '),
+                                style: const TextStyle(color: StyleColor.muted),
                               ),
-                            ),
-                          ],
+                              if (user.bio?.isNotEmpty == true) ...[
+                                const SizedBox(height: 8),
+                                Text(user.bio!),
+                              ],
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  _StatCard(
+                                    label: 'Listings',
+                                    value: '${listings.length}',
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _StatCard(label: 'Member', value: 'Active'),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              const Text(
+                                'Your listings',
+                                style: TextStyle(
+                                  fontSize: StyleFont.largeSize,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              if (listings.isEmpty)
+                if (listings.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 200,
+                      child: EmptyState(
+                        title: 'No products yet',
+                        message: 'Your listings will show up here.',
+                        icon: Icons.storefront_outlined,
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 26),
+                    sliver: SliverGrid.builder(
+                      itemCount: listings.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: .74,
+                          ),
+                      itemBuilder: (context, index) => ProductCard(
+                        product: listings[index].product,
+                        onTap: () => _openProduct(
+                          listings[index].product.id,
+                          listings[index].post.id,
+                        ),
+                      ),
+                    ),
+                  ),
                 const SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 200,
-                    child: EmptyState(
-                      title: 'No products yet',
-                      message: 'Your listings will show up here.',
-                      icon: Icons.storefront_outlined,
-                    ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 26),
-                  sliver: SliverGrid.builder(
-                    itemCount: listings.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: .74,
-                        ),
-                    itemBuilder: (context, index) => ProductCard(
-                      product: listings[index].product,
-                      onTap: () => _openProduct(
-                        listings[index].product.id,
-                        listings[index].post.id,
-                      ),
-                    ),
-                  ),
+                  child: SizedBox(height: StyleSpacing.bottomContentClearance),
                 ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     ),
   );
 }

@@ -1,9 +1,12 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:marketplace_mobile/core/components/product_artwork.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/adaptive_safe_body.dart';
+import '../../shell/bottom_navigation_visibility.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
 import '../../core/components/marketplace_app_bar.dart';
@@ -134,21 +137,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (!mounted) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: false,
-      showDragHandle: false,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      builder: (sheetContext) => ProductSearchSheet(
-        posts: page.items,
-        onSelected: (post, product) {
-          Navigator.of(sheetContext).pop();
-          _openProduct(post, product);
-        },
+    await hideBottomNavigationWhile(
+      () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: false,
+        showDragHandle: false,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        builder: (sheetContext) => ProductSearchSheet(
+          posts: page.items,
+          onSelected: (post, product) {
+            Navigator.of(sheetContext).pop();
+            _openProduct(post, product);
+          },
+        ),
       ),
     );
   }
@@ -217,100 +222,100 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: MarketplaceAppBar(
-      title: 'Nurak MK27',
-      actions: [
-        MKButton(
-          title: 'Search',
-          icon: const Icon(Icons.search_rounded),
-          onPressed: _openSearch,
-        ),
-      ],
-    ),
-    body: RefreshIndicator(
-      onRefresh: _refresh,
-      child: CustomScrollView(
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.all(10),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 5),
-                  SizedBox(
-                    height: 68,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: marketplaceCategoryItems.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) =>
-                          _categoryTile(marketplaceCategoryItems[index]),
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(10),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 5),
+                    SizedBox(
+                      height: 68,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: marketplaceCategoryItems.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) =>
+                            _categoryTile(marketplaceCategoryItems[index]),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 5),
-                ],
+                    const SizedBox(height: 5),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          FutureBuilder<ApiPage<MarketplacePost>>(
-            future: _posts,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(child: SizedBox.shrink());
-              }
-              if (snapshot.hasError) {
-                return SliverToBoxAdapter(
-                  child: ErrorRetryPanel(
-                    error: snapshot.error!,
-                    onRetry: _refresh,
-                  ),
-                );
-              }
-              final posts = _filterPosts(snapshot.data?.items ?? const []);
-              if (posts.isEmpty) {
-                return const SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 260,
-                    child: EmptyState(
-                      title: 'No listings yet',
-                      message:
-                          'Try another category or be the first to list something.',
-                      icon: Icons.storefront_outlined,
+            FutureBuilder<ApiPage<MarketplacePost>>(
+              future: _posts,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SliverToBoxAdapter(child: SizedBox.shrink());
+                }
+                if (snapshot.hasError) {
+                  return SliverToBoxAdapter(
+                    child: ErrorRetryPanel(
+                      error: snapshot.error!,
+                      onRetry: _refresh,
                     ),
-                  ),
-                );
-              }
-              return SliverList.separated(
-                itemCount: posts.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 5),
-                itemBuilder: (context, index) {
-                  final post = posts[index];
-                  return MarketplacePostCard(
-                    key: ValueKey(post.id),
-                    post: post,
-                    isLiked: (post, product) =>
-                        _likedOverrides[(post.id, product.id)] ??
-                        post.engagementFor(product).hasReacted,
-                    likeCount: (post, product) =>
-                        _likeCountOverrides[(post.id, product.id)] ??
-                        post.engagementFor(product).reactionCount,
-                    isLiking: (post, product) =>
-                        _likingIds.contains((post.id, product.id)),
-                    onLike: _toggleLike,
-                    onComment: _openComments,
-                    isSaved: (product) =>
-                        _savedOverrides[product.id] ?? product.isSaved,
-                    onSave: _toggleSaved,
-                    onProductTap: _openProduct,
                   );
-                },
-              );
-            },
-          ),
-        ],
+                }
+                final posts = _filterPosts(snapshot.data?.items ?? const []);
+                if (posts.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 260,
+                      child: EmptyState(
+                        title: 'No listings yet',
+                        message:
+                            'Try another category or be the first to list something.',
+                        icon: Icons.storefront_outlined,
+                      ),
+                    ),
+                  );
+                }
+                return SliverList.separated(
+                  itemCount: posts.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 5),
+                  itemBuilder: (context, index) {
+                    final post = posts[index];
+                    return MarketplacePostCard(
+                      key: ValueKey(post.id),
+                      post: post,
+                      isLiked: (post, product) =>
+                          _likedOverrides[(post.id, product.id)] ??
+                          post.engagementFor(product).hasReacted,
+                      likeCount: (post, product) =>
+                          _likeCountOverrides[(post.id, product.id)] ??
+                          post.engagementFor(product).reactionCount,
+                      isLiking: (post, product) =>
+                          _likingIds.contains((post.id, product.id)),
+                      onLike: _toggleLike,
+                      onComment: _openComments,
+                      isSaved: (product) =>
+                          _savedOverrides[product.id] ?? product.isSaved,
+                      onSave: _toggleSaved,
+                      onProductTap: _openProduct,
+                    );
+                  },
+                );
+              },
+            ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: StyleSpacing.bottomContentClearance),
+            ),
+          ],
+        ),
       ),
     ),
   );

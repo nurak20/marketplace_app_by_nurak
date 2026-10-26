@@ -1,15 +1,20 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
-import '../singleton.dart';
-import 'mk_button.dart';
-import 'user_avatar.dart';
-
-class MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget {
+/// Same name and constructor as before. Because [AdaptiveAppBar] is a config
+/// object (not a widget), call [build] to get it and pass it to
+/// [AdaptiveScaffold]:
+///
+/// ```dart
+/// AdaptiveScaffold(
+///   appBar: const MarketplaceAppBar(title: 'Home').build(context),
+///   body: ...,
+/// )
+/// ```
+class MarketplaceAppBar {
   const MarketplaceAppBar({
-    super.key,
-    required this.title,
+    this.title = '',
     this.actions = const [],
     this.titleContent,
     this.showNotifications = true,
@@ -17,61 +22,62 @@ class MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   final String title;
-  final List<Widget> actions;
+  final List<AdaptiveAppBarAction> actions;
   final Widget? titleContent;
   final bool showNotifications;
   final bool showProfileAvatar;
 
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
-  @override
-  Widget build(BuildContext context) => AppBar(
-    automaticallyImplyLeading: false,
-    title: InkWell(
+  AdaptiveAppBar build(BuildContext context) => AdaptiveAppBar(
+    useNativeToolbar: true,
+    leading: InkWell(
       onTap: () => context.go('/'),
       borderRadius: BorderRadius.circular(10),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              'lib/assets/logo/mk27_app_logo.png',
-              width: 34,
-              height: 34,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child:
-                titleContent ??
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.asset(
+          'lib/assets/logo/mk27_app_logo.png',
+          width: 34,
+          height: 34,
+          fit: BoxFit.cover,
+        ),
       ),
     ),
+    // Title stays hidden, as before:
+    // titleContent ?? Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)
     actions: [
       ...actions,
       if (showNotifications)
-        MKButton(
-          title: 'Notifications',
-          icon: const Icon(Icons.notifications_none_rounded),
+        AdaptiveAppBarAction(
+          iosSymbol: 'bell',
+          icon: Icons.notifications_none_rounded,
+          label: 'Notifications',
           onPressed: () => context.push('/notifications'),
         ),
-      if (showProfileAvatar)
-        Consumer<Singleton>(
-          builder: (context, singleton, _) => MKButton(
-            title: 'Profile',
-            icon: UserAvatar(
-              profile: singleton.userProfile,
-              radius: 17,
-              size: 34,
-            ),
-            onPressed: () => context.go('/me'),
-          ),
-        ),
-      const SizedBox(width: 4),
+      // if (showProfileAvatar)
+      AdaptiveAppBarAction(
+        iosSymbol: 'person.crop.circle',
+        icon: Icons.account_circle_outlined,
+        label: 'Profile',
+        onPressed: () => context.go('/me'),
+      ),
     ],
   );
 }
+
+/// Keeps a page's content clear of the floating iOS 26+ Liquid Glass toolbar
+/// and tab bar.
+///
+/// Wrap the `body` of every [AdaptiveScaffold] with it:
+///
+/// ```dart
+/// AdaptiveScaffold(
+///   appBar: const MarketplaceAppBar().build(context),
+///   body: AdaptiveSafeBody(
+///     child: ListView(padding: const EdgeInsets.all(16), children: [...]),
+///   ),
+/// )
+/// ```
+///
+/// It is a normal [SafeArea]. The package already insets MediaQuery by the
+/// toolbar height, and the `minimum` values below only apply when that inset
+/// is smaller (SafeArea takes the larger value, so nothing is added twice).

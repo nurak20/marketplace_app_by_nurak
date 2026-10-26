@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 
 import '../core/app_theme.dart';
+import 'bottom_navigation_visibility.dart';
 
 const _destinations = <_AppNavigationDestination>[
   _AppNavigationDestination(
@@ -60,49 +61,68 @@ class _AppShellState extends State<AppShell> {
       _ => 0,
     };
 
-    return Scaffold(
-      // Keep the page viewport above the navigation bar so the two never overlap.
-      extendBody: false,
-      body: ClipRect(child: widget.child),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-        child: SafeArea(
-          top: false,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(40),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: AdaptiveBlurView(
-              blurStyle: BlurStyle.systemThinMaterial,
-              borderRadius: BorderRadius.circular(40),
-              child: SizedBox(
-                height: 64,
-                child: Row(
-                  children: [
-                    for (var index = 0; index < _destinations.length; index++)
-                      Expanded(
-                        child: _BottomNavigationItem(
-                          destination: _destinations[index],
-                          selected: selectedIndex == index,
-                          onTap: () =>
-                              context.go(_destinations[index].location),
+    return ValueListenableBuilder<bool>(
+      valueListenable: bottomNavigationVisible,
+      builder: (context, requestedVisible, _) {
+        final showBar =
+            requestedVisible && MediaQuery.viewInsetsOf(context).bottom == 0;
+
+        return Scaffold(
+          // Let the page show through around the floating glass navigation pill.
+          // Page content includes a trailing clearance spacer for safe scrolling.
+          extendBody: true,
+          body: ClipRect(child: widget.child),
+          bottomNavigationBar: showBar
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: SafeArea(
+                    top: false,
+                    bottom: true,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(40),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.55),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.10),
+                            blurRadius: 20,
+                            offset: const Offset(0, 7),
+                          ),
+                        ],
+                      ),
+                      child: AdaptiveBlurView(
+                        blurStyle: BlurStyle.systemThinMaterial,
+                        borderRadius: BorderRadius.circular(40),
+                        child: SizedBox(
+                          height: 64,
+                          child: Row(
+                            children: [
+                              for (
+                                var index = 0;
+                                index < _destinations.length;
+                                index++
+                              )
+                                Expanded(
+                                  child: _BottomNavigationItem(
+                                    destination: _destinations[index],
+                                    selected: selectedIndex == index,
+                                    onTap: () => context.go(
+                                      _destinations[index].location,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+                    ),
+                  ),
+                )
+              : null,
+        );
+      },
     );
   }
 }
@@ -134,8 +154,7 @@ class _BottomNavigationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const selectedColor = Color(0xFF2563EB);
-    final color = selected ? selectedColor : const Color(0xFF25282B);
+    final color = selected ? StyleColor.ink : StyleColor.muted;
 
     return Semantics(
       button: true,

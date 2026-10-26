@@ -1,8 +1,10 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/product_artwork.dart';
@@ -32,70 +34,78 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Future<List<MarketplaceMessage>> _fetchInbox() => api.inbox();
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const MarketplaceAppBar(title: 'Chats'),
-    body: FutureBuilder<List<MarketplaceMessage>>(
-      future: _inbox,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        if (snapshot.hasError) {
-          return _ErrorRetry(
-            error: snapshot.error!,
-            onRetry: () => setState(() {
-              _load();
-            }),
-          );
-        }
-        final messages = snapshot.data!;
-        final currentUserId = Singleton.instance.account?.profile.id ?? -1;
-        final threads = <int, MarketplaceMessage>{};
-        for (final message in messages) {
-          final id = message.senderId == currentUserId
-              ? message.receiverId
-              : message.senderId;
-          threads.putIfAbsent(id, () => message);
-        }
-        if (threads.isEmpty) {
-          return const EmptyState(
-            title: 'No chats yet',
-            message:
-                'Open a listing and message the seller to start a conversation.',
-            icon: Icons.chat_bubble_outline_rounded,
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: threads.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final userId = threads.keys.elementAt(index);
-            final message = threads[userId]!;
-            final profile = message.contactFor(currentUserId);
-            return Card(
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                leading: UserAvatar(profile: profile),
-                title: Text(
-                  profile?.displayName ?? 'Member #$userId',
-                  style: const TextStyle(fontWeight: FontWeight.w400),
-                ),
-                subtitle: Text(
-                  message.content,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/chats/$userId'),
-              ),
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(title: 'Home').build(context),
+
+    body: AdaptiveSafeBody(
+      child: FutureBuilder<List<MarketplaceMessage>>(
+        future: _inbox,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            return _ErrorRetry(
+              error: snapshot.error!,
+              onRetry: () => setState(() {
+                _load();
+              }),
             );
-          },
-        );
-      },
+          }
+          final messages = snapshot.data!;
+          final currentUserId = Singleton.instance.account?.profile.id ?? -1;
+          final threads = <int, MarketplaceMessage>{};
+          for (final message in messages) {
+            final id = message.senderId == currentUserId
+                ? message.receiverId
+                : message.senderId;
+            threads.putIfAbsent(id, () => message);
+          }
+          if (threads.isEmpty) {
+            return const EmptyState(
+              title: 'No chats yet',
+              message:
+                  'Open a listing and message the seller to start a conversation.',
+              icon: Icons.chat_bubble_outline_rounded,
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: threads.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              if (index == threads.length) {
+                return const SizedBox(
+                  height: StyleSpacing.bottomContentClearance,
+                );
+              }
+              final userId = threads.keys.elementAt(index);
+              final message = threads[userId]!;
+              final profile = message.contactFor(currentUserId);
+              return Card(
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  leading: UserAvatar(profile: profile),
+                  title: Text(
+                    profile?.displayName ?? 'Member #$userId',
+                    style: const TextStyle(fontWeight: FontWeight.w400),
+                  ),
+                  subtitle: Text(
+                    message.content,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/chats/$userId'),
+                ),
+              );
+            },
+          );
+        },
+      ),
     ),
   );
 }
@@ -183,25 +193,174 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: MarketplaceAppBar(
-      title: 'Conversation',
-      titleContent:
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child:
           FutureBuilder<
             (Account, UserProfile?, List<MarketplaceMessage>, Product?)
           >(
             future: _conversation,
             builder: (context, snapshot) {
-              final profile = snapshot.data?.$2;
-              return Row(
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox.shrink();
+              }
+              if (snapshot.hasError) {
+                return _ErrorRetry(
+                  error: snapshot.error!,
+                  onRetry: () => setState(() {
+                    _load();
+                  }),
+                );
+              }
+              final (account, contact, messages, product) = snapshot.data!;
+              return Column(
                 children: [
-                  UserAvatar(profile: profile, radius: 16),
-                  const SizedBox(width: 10),
+                  if (product != null)
+                    Card(
+                      margin: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+                      child: ListTile(
+                        leading: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(9),
+                            child: ProductArtwork(
+                              category: product.category,
+                              height: 44,
+                              image: product.primaryImage,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          product.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w400),
+                        ),
+                        subtitle: Text('\$${product.price.toStringAsFixed(2)}'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/products/${product.id}'),
+                      ),
+                    ),
                   Expanded(
-                    child: Text(
-                      profile?.displayName ?? 'Member #${widget.userId}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: messages.isEmpty
+                        ? const EmptyState(
+                            title: 'Say hello',
+                            message:
+                                'Ask a question or arrange a time to meet.',
+                            icon: Icons.chat_bubble_outline_rounded,
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.fromLTRB(
+                              14,
+                              12,
+                              14,
+                              StyleSpacing.bottomContentClearance,
+                            ),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              final mine =
+                                  message.senderId == account.profile.id;
+                              return Align(
+                                alignment: mine
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    if (!mine) ...[
+                                      UserAvatar(profile: contact, radius: 14),
+                                      const SizedBox(width: 7),
+                                    ],
+                                    Container(
+                                      constraints: BoxConstraints(
+                                        maxWidth:
+                                            MediaQuery.sizeOf(context).width *
+                                            .68,
+                                      ),
+                                      margin: const EdgeInsets.symmetric(
+                                        vertical: 5,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: mine
+                                            ? StyleColor.ink
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.only(
+                                          topLeft: const Radius.circular(17),
+                                          topRight: const Radius.circular(17),
+                                          bottomLeft: Radius.circular(
+                                            mine ? 17 : 4,
+                                          ),
+                                          bottomRight: Radius.circular(
+                                            mine ? 4 : 17,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        message.content,
+                                        style: TextStyle(
+                                          color: mine
+                                              ? Colors.white
+                                              : StyleColor.ink,
+                                        ),
+                                      ),
+                                    ),
+                                    if (mine) ...[
+                                      const SizedBox(width: 7),
+                                      UserAvatar(
+                                        profile: account.profile,
+                                        radius: 14,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _composer,
+                              minLines: 1,
+                              maxLines: 4,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _send(),
+                              decoration: const InputDecoration(
+                                hintText: 'Write a message',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _sending ? null : _send,
+                            tooltip: 'Send message',
+                            icon: const Icon(Icons.send_rounded),
+                            style: IconButton.styleFrom(
+                              iconSize: StyleColor.iconSize,
+                              backgroundColor: StyleColor.ink,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -209,166 +368,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
             },
           ),
     ),
-    body:
-        FutureBuilder<
-          (Account, UserProfile?, List<MarketplaceMessage>, Product?)
-        >(
-          future: _conversation,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox.shrink();
-            }
-            if (snapshot.hasError) {
-              return _ErrorRetry(
-                error: snapshot.error!,
-                onRetry: () => setState(() {
-                  _load();
-                }),
-              );
-            }
-            final (account, contact, messages, product) = snapshot.data!;
-            return Column(
-              children: [
-                if (product != null)
-                  Card(
-                    margin: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-                    child: ListTile(
-                      leading: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(9),
-                          child: ProductArtwork(
-                            category: product.category,
-                            height: 44,
-                            image: product.primaryImage,
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        product.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w400),
-                      ),
-                      subtitle: Text('\$${product.price.toStringAsFixed(2)}'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.push('/products/${product.id}'),
-                    ),
-                  ),
-                Expanded(
-                  child: messages.isEmpty
-                      ? const EmptyState(
-                          title: 'Say hello',
-                          message: 'Ask a question or arrange a time to meet.',
-                          icon: Icons.chat_bubble_outline_rounded,
-                        )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
-                          itemCount: messages.length,
-                          itemBuilder: (context, index) {
-                            final message = messages[index];
-                            final mine = message.senderId == account.profile.id;
-                            return Align(
-                              alignment: mine
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  if (!mine) ...[
-                                    UserAvatar(profile: contact, radius: 14),
-                                    const SizedBox(width: 7),
-                                  ],
-                                  Container(
-                                    constraints: BoxConstraints(
-                                      maxWidth:
-                                          MediaQuery.sizeOf(context).width *
-                                          .68,
-                                    ),
-                                    margin: const EdgeInsets.symmetric(
-                                      vertical: 5,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: mine
-                                          ? StyleColor.ink
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.only(
-                                        topLeft: const Radius.circular(17),
-                                        topRight: const Radius.circular(17),
-                                        bottomLeft: Radius.circular(
-                                          mine ? 17 : 4,
-                                        ),
-                                        bottomRight: Radius.circular(
-                                          mine ? 4 : 17,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      message.content,
-                                      style: TextStyle(
-                                        color: mine
-                                            ? Colors.white
-                                            : StyleColor.ink,
-                                      ),
-                                    ),
-                                  ),
-                                  if (mine) ...[
-                                    const SizedBox(width: 7),
-                                    UserAvatar(
-                                      profile: account.profile,
-                                      radius: 14,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _composer,
-                            minLines: 1,
-                            maxLines: 4,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _send(),
-                            decoration: const InputDecoration(
-                              hintText: 'Write a message',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          onPressed: _sending ? null : _send,
-                          tooltip: 'Send message',
-                          icon: const Icon(Icons.send_rounded),
-                          style: IconButton.styleFrom(
-                            iconSize: StyleColor.iconSize,
-                            backgroundColor: StyleColor.ink,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
   );
 
   @override

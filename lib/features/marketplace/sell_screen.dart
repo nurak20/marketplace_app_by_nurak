@@ -1,11 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/adaptive_safe_body.dart';
 import '../../core/components/choose_image_bottom_sheet.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/primary_button.dart';
@@ -13,10 +15,7 @@ import '../../core/components/show_error.dart';
 import '../../core/models.dart';
 import 'marketplace_options.dart';
 
-typedef _Photo = ({
-  XFile file,
-  Uint8List bytes,
-});
+typedef _Photo = ({XFile file, Uint8List bytes});
 
 class _ProductDraft {
   final title = TextEditingController();
@@ -79,12 +78,7 @@ class _SellScreenState extends State<SellScreen> {
       final photos = await Future.wait(
         selected
             .take(remaining)
-            .map(
-              (file) async => (
-                file: file,
-                bytes: await file.readAsBytes(),
-              ),
-            ),
+            .map((file) async => (file: file, bytes: await file.readAsBytes())),
       );
       if (mounted) setState(() => product.photos.addAll(photos));
     } catch (error) {
@@ -123,21 +117,15 @@ class _SellScreenState extends State<SellScreen> {
           imageIndexes.add(images.length);
           images.add((name: photo.file.name, bytes: photo.bytes));
         }
-        products.add({
-          ..._productBody(draft),
-          'imageIndexes': imageIndexes,
-        });
+        products.add({..._productBody(draft), 'imageIndexes': imageIndexes});
       }
 
-      final post = await api.createListing(
-        {
-          'content': _postContent(
-            _products.map((draft) => draft.title.text.trim()).toList(),
-          ),
-          'products': products,
-        },
-        images,
-      );
+      final post = await api.createListing({
+        'content': _postContent(
+          _products.map((draft) => draft.title.text.trim()).toList(),
+        ),
+        'products': products,
+      }, images);
 
       if (!mounted) return;
       if (post.products.isEmpty) {
@@ -298,57 +286,61 @@ class _SellScreenState extends State<SellScreen> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const MarketplaceAppBar(title: 'Create a post'),
-    body: Form(
-      key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-        children: [
-          AbsorbPointer(
-            absorbing: _busy,
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: _caption,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Post message (optional)',
-                    hintText: 'Write a message for these products',
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: const MarketplaceAppBar(
+      title: 'Chat',
+      showNotifications: false,
+      showProfileAvatar: false,
+    ).build(context),
+    body: AdaptiveSafeBody(
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+          children: [
+            AbsorbPointer(
+              absorbing: _busy,
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _caption,
+                    minLines: 1,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Post message (optional)',
+                      hintText: 'Write a message for these products',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                for (var i = 0; i < _products.length; i++) ...[
-                  _productEditor(_products[i], i),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+                  for (var i = 0; i < _products.length; i++) ...[
+                    _productEditor(_products[i], i),
+                    const SizedBox(height: 12),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: _addProduct,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    label: const Text('Add another product'),
+                  ),
                 ],
-                OutlinedButton.icon(
-                  onPressed: _addProduct,
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  label: const Text('Add another product'),
-                ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          PrimaryButton(
-            label:
-                'Publish ${_products.length} product${_products.length == 1 ? '' : 's'} in one post',
-            busy: _busy,
-            onPressed: _publish,
-          ),
-        ],
+            const SizedBox(height: 14),
+            PrimaryButton(
+              label:
+                  'Publish ${_products.length} product${_products.length == 1 ? '' : 's'} in one post',
+              busy: _busy,
+              onPressed: _publish,
+            ),
+            const SizedBox(height: StyleSpacing.bottomContentClearance),
+          ],
+        ),
       ),
     ),
   );
 }
 
 class _PhotoTile extends StatelessWidget {
-  const _PhotoTile({
-    required this.bytes,
-    required this.onRemove,
-  });
+  const _PhotoTile({required this.bytes, required this.onRemove});
   final Uint8List bytes;
   final VoidCallback onRemove;
 

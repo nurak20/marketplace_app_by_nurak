@@ -20,6 +20,10 @@ abstract final class StyleFont {
   static const largeSize = 18.0;
 }
 
+abstract final class StyleSpacing {
+  static const bottomContentClearance = 150.0;
+}
+
 ThemeData buildAppTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: StyleColor.ink,
