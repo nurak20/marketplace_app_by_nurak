@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
@@ -343,7 +344,7 @@ class Api {
 
   Future<MarketplacePost> createListing(
     JsonMap payload,
-    List<XFile> images,
+    List<({String name, Uint8List bytes})> images,
   ) async {
     final form = FormData();
     form.files.add(
@@ -359,20 +360,13 @@ class Api {
       form.files.add(
         MapEntry(
           'files',
-          MultipartFile.fromBytes(
-            await image.readAsBytes(),
-            filename: image.name,
-          ),
+          MultipartFile.fromBytes(image.bytes, filename: image.name),
         ),
       );
     }
 
     return MarketplacePost.fromJson(
-      asJsonMap(
-        await _request(
-          () => dio.post('/posts/listing', data: form),
-        ),
-      ),
+      asJsonMap(await _request(() => dio.post('/posts/listing', data: form))),
     );
   }
 

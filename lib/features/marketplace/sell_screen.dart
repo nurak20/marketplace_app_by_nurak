@@ -115,13 +115,13 @@ class _SellScreenState extends State<SellScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
     try {
-      final images = <XFile>[];
+      final images = <({String name, Uint8List bytes})>[];
       final products = <JsonMap>[];
       for (final draft in _products) {
         final imageIndexes = <int>[];
         for (final photo in draft.photos) {
           imageIndexes.add(images.length);
-          images.add(photo.file);
+          images.add((name: photo.file.name, bytes: photo.bytes));
         }
         products.add({
           ..._productBody(draft),

@@ -110,6 +110,10 @@ List<MarketplaceImage> _productImagesFromJson(JsonMap json) {
   if (direct != null && !images.any((image) => image.url == direct.url)) {
     images.insert(0, direct);
   }
+  final primaryIndex = images.indexWhere(
+    (image) => image.label.toLowerCase() == 'primary',
+  );
+  if (primaryIndex > 0) images.insert(0, images.removeAt(primaryIndex));
   return images;
 }
 
