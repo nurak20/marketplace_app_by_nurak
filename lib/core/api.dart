@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -22,7 +22,7 @@ class Api {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           final token = SessionStore.instance.token;
-          if (token != null && !options.path.startsWith('/auth/')) {
+          if (token != null && !_isPublicAuthPath(options.path)) {
             options.headers['Authorization'] = 'Bearer $token';
           }
           if (options.extra['loading'] != false) {
@@ -41,7 +41,7 @@ class Api {
         onError: (error, handler) {
           _finishLoading(error.requestOptions);
           if (error.response?.statusCode == 401 &&
-              !error.requestOptions.path.startsWith('/auth/')) {
+              !_isPublicAuthPath(error.requestOptions.path)) {
             unawaited(SessionStore.instance.clear());
           }
           handler.next(error);
@@ -50,6 +50,10 @@ class Api {
     );
   }
 
+  static const _publicAuthPaths = {'/auth/login', '/auth/register'};
+
+  static bool _isPublicAuthPath(String path) => _publicAuthPaths.contains(path);
+
   void _finishLoading(RequestOptions options) {
     final handle = options.extra.remove(_loadingHandleExtra);
     if (handle is LoadingDialogHandle) handle.close();
@@ -57,8 +61,20 @@ class Api {
 
   static final Api instance = Api._();
   final Dio dio;
+  List<String>? _marketplaceCategoryNames;
+  List<String>? _marketplaceConditionCodes;
 
   String get baseUrl => dio.options.baseUrl;
+  List<String>? get marketplaceCategoryNames => _marketplaceCategoryNames;
+  List<String>? get marketplaceConditionCodes => _marketplaceConditionCodes;
+
+  void updateMarketplaceCategoryNames(Iterable<String> names) {
+    _marketplaceCategoryNames = names.toList(growable: false);
+  }
+
+  void updateMarketplaceConditionCodes(Iterable<String> codes) {
+    _marketplaceConditionCodes = codes.toList(growable: false);
+  }
 
   Future<void> initialize() async {
     final environmentBaseUrl = await _loadEnvironmentBaseUrl();
@@ -70,7 +86,7 @@ class Api {
         'API_BASE_URL is missing or invalid in the root .env file.',
       );
     }
-    dio.options.baseUrl = baseUrl;
+    dio.options.baseUrl = _androidHostAlias(baseUrl);
   }
 
   Future<String?> _loadEnvironmentBaseUrl() async {
@@ -102,7 +118,20 @@ class Api {
     final validated = validateBaseUrl(value);
     if (validated == null) throw const FormatException('Invalid API URL');
 
-    dio.options.baseUrl = validated;
+    dio.options.baseUrl = _androidHostAlias(validated);
+  }
+
+  /// The Android emulator reaches the host machine through 10.0.2.2, so a
+  /// localhost base URL would otherwise point at the emulator itself.
+  static String _androidHostAlias(String value) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return value;
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null || (uri.host != 'localhost' && uri.host != '127.0.0.1')) {
+      return value;
+    }
+    return uri.replace(host: '10.0.2.2').toString();
   }
 
   static String? validateBaseUrl(String value) {
@@ -175,8 +204,253 @@ class Api {
     return account;
   }
 
-  Future<JsonMap> profile(int userId) async =>
-      asJsonMap(await _request(() => dio.get('/users/$userId')));
+  Future<JsonMap> profile(int userId, {bool silent = false}) async => asJsonMap(
+    await _request(
+      () => dio.get(
+        '/users/$userId',
+        options: silent ? Options(extra: {'loading': false}) : null,
+      ),
+    ),
+  );
+
+  Future<Account> updateProfile({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phone,
+  }) async {
+    final response = asJsonMap(
+      await _request(
+        () => dio.patch(
+          '/users/me',
+          data: {
+            'firstName': firstName,
+            'lastName': lastName,
+            'email': email,
+            'phone': phone,
+          },
+        ),
+      ),
+    );
+    final account = Account.fromJson(
+      asJsonMap(response['account'] ?? response),
+    );
+    final token = response['token'];
+    if (token is String && token.isNotEmpty) {
+      await SessionStore.instance.saveToken(token, notify: false);
+    }
+    Singleton.instance.setAccount(account);
+    return account;
+  }
+
+  Future<ApiPage<Account>> managementUsers() async => ApiPage<Account>.fromJson(
+    asJsonMap(
+      await _request(
+        () =>
+            dio.get('/admin/users', queryParameters: {'page': 0, 'size': 100}),
+      ),
+    ),
+    Account.fromJson,
+  );
+
+  Future<Account> createManagementUser({
+    required String username,
+    required String email,
+    required String password,
+    required String roleName,
+    String? fullName,
+  }) async => Account.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.post(
+          '/admin/users',
+          data: {
+            'username': username,
+            'email': email,
+            'password': password,
+            'fullName': fullName,
+            'roleName': roleName,
+          },
+        ),
+      ),
+    ),
+  );
+
+  Future<Account> setUserSelling(int userId, bool canSell) async =>
+      Account.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.patch(
+              '/admin/users/$userId/selling',
+              data: {'canSell': canSell},
+            ),
+          ),
+        ),
+      );
+
+  Future<Account> setUserActive(int userId, bool active) async =>
+      Account.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.patch(
+              '/admin/users/$userId/active',
+              data: {'active': active},
+            ),
+          ),
+        ),
+      );
+
+  Future<Account> setUserStaffRole(int userId, String roleName) async =>
+      Account.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.patch(
+              '/admin/users/$userId/staff-role',
+              data: {'roleName': roleName},
+            ),
+          ),
+        ),
+      );
+
+  Future<List<ManagementCategory>> managementCategories() async =>
+      _listResponse(
+        await _request(() => dio.get('/admin/categories')),
+        ManagementCategory.fromJson,
+      );
+
+  Future<ManagementCategory> createManagementCategory(String name) async =>
+      ManagementCategory.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.post('/admin/categories', data: {'name': name}),
+          ),
+        ),
+      );
+
+  Future<ManagementCategory> renameManagementCategory(
+    int id,
+    String name,
+  ) async => ManagementCategory.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.put('/admin/categories/$id', data: {'name': name}),
+      ),
+    ),
+  );
+
+  Future<ManagementCategory> setManagementCategoryActive(
+    int id,
+    bool active,
+  ) async => ManagementCategory.fromJson(
+    asJsonMap(
+      await _request(
+        () =>
+            dio.patch('/admin/categories/$id/active', data: {'active': active}),
+      ),
+    ),
+  );
+
+  Future<ManagementCategory> archiveManagementCategory(int id) async =>
+      ManagementCategory.fromJson(
+        asJsonMap(await _request(() => dio.delete('/admin/categories/$id'))),
+      );
+
+  Future<ManagementCondition> createManagementCondition(String name) async =>
+      ManagementCondition.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.post('/admin/conditions', data: {'code': name}),
+          ),
+        ),
+      );
+
+  Future<List<ManagementCondition>> managementConditions() async =>
+      _listResponse(
+        await _request(() => dio.get('/admin/conditions')),
+        ManagementCondition.fromJson,
+      );
+
+  Future<ManagementCondition> setManagementConditionActive(
+    String code,
+    bool active,
+  ) async => ManagementCondition.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.patch(
+          '/admin/conditions/${Uri.encodeComponent(code)}/active',
+          data: {'active': active},
+        ),
+      ),
+    ),
+  );
+
+  Future<ManagementCondition> renameManagementCondition(
+    String code,
+    String name,
+  ) async => ManagementCondition.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.put(
+          '/admin/conditions/${Uri.encodeComponent(code)}',
+          data: {'code': name},
+        ),
+      ),
+    ),
+  );
+
+  Future<ManagementCondition> archiveManagementCondition(String code) async =>
+      ManagementCondition.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.delete('/admin/conditions/${Uri.encodeComponent(code)}'),
+          ),
+        ),
+      );
+
+  Future<ApiPage<ManagementPost>> managementPosts() async =>
+      ApiPage<ManagementPost>.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.get(
+              '/admin/posts',
+              queryParameters: {
+                'page': 0,
+                'size': 100,
+                'sort': 'createdAt,desc',
+              },
+            ),
+          ),
+        ),
+        ManagementPost.fromJson,
+      );
+
+  Future<ManagementPost> setManagementPostAvailable(
+    int postId,
+    bool available,
+  ) async => ManagementPost.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.patch(
+          '/admin/posts/$postId/availability',
+          data: {'available': available},
+        ),
+      ),
+    ),
+  );
+
+  List<T> _listResponse<T>(Object? response, T Function(JsonMap) parse) {
+    Object? value = response;
+    while (value is Map && value['data'] != null) {
+      value = value['data'];
+    }
+    if (value is Map) {
+      value = value['items'] ?? value['content'] ?? value['results'];
+    }
+    return (value as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => parse(Map<String, dynamic>.from(item)))
+        .toList();
+  }
 
   Future<ApiPage<Product>> products({
     String? keyword,
@@ -193,18 +467,17 @@ class Api {
     if (category != null && category != 'All') query['category'] = category;
     if (sellerId != null) query['sellerId'] = sellerId;
     if (status != null) query['status'] = status;
-    return ApiPage<Product>.fromJson(
-      asJsonMap(
-        await _request(
-          () => dio.get(
-            '/products',
-            queryParameters: query,
-            options: Options(extra: {'loading': false}),
-          ),
+    final response = asJsonMap(
+      await _request(
+        () => dio.get(
+          '/products',
+          queryParameters: query,
+          options: Options(extra: {'loading': false}),
         ),
       ),
-      Product.fromJson,
     );
+    _captureMarketplaceOptions(response);
+    return ApiPage<Product>.fromJson(response, Product.fromJson);
   }
 
   Future<Product> product(int id, {int? postId}) async => Product.fromJson(
@@ -218,6 +491,15 @@ class Api {
   Future<Product> createProduct(JsonMap body) async => Product.fromJson(
     asJsonMap(await _request(() => dio.post('/products', data: body))),
   );
+
+  Future<MarketplaceOptions> marketplaceOptions() async {
+    final options = MarketplaceOptions.fromJson(
+      asJsonMap(await _request(() => dio.get('/marketplace/options'))),
+    );
+    _marketplaceCategoryNames = options.categories;
+    _marketplaceConditionCodes = options.conditions;
+    return options;
+  }
 
   Future<MarketplaceImage?> uploadProductImage(
     int productId,
@@ -268,14 +550,27 @@ class Api {
       'page': 0,
       'size': size,
       'sort': 'createdAt,desc',
-      if (userId != null) 'userId': userId,
     };
+    if (userId != null) query['userId'] = userId;
+    final response = asJsonMap(
+      await _request(() => dio.get('/posts', queryParameters: query)),
+    );
+    _captureMarketplaceOptions(response);
     return ApiPage<MarketplacePost>.fromJson(
-      asJsonMap(
-        await _request(() => dio.get('/posts', queryParameters: query)),
-      ),
+      response,
       MarketplacePost.fromJson,
     );
+  }
+
+  void _captureMarketplaceOptions(JsonMap response) {
+    final categories = response['categories'];
+    final conditions = response['conditions'];
+    if (categories is List) {
+      _marketplaceCategoryNames = categories.map((value) => '$value').toList();
+    }
+    if (conditions is List) {
+      _marketplaceConditionCodes = conditions.map((value) => '$value').toList();
+    }
   }
 
   Future<MarketplacePost> post(int id) async => MarketplacePost.fromJson(
@@ -462,7 +757,14 @@ class Api {
   }
 
   Future<List<MarketplaceMessage>> inbox() async =>
-      ((await _request(() => dio.get('/messages')) as List?) ?? const [])
+      ((await _request(
+                    () => dio.get(
+                      '/messages',
+                      options: Options(extra: {'loading': false}),
+                    ),
+                  )
+                  as List?) ??
+              const [])
           .whereType<Map>()
           .map(
             (item) =>
@@ -470,49 +772,350 @@ class Api {
           )
           .toList();
 
-  Future<ApiPage<MarketplaceMessage>> conversation(int userId) async =>
-      ApiPage.fromJson(
-        asJsonMap(
-          await _request(
-            () => dio.get(
-              '/messages/$userId',
-              queryParameters: {
-                'page': 0,
-                'size': 100,
-                'sort': 'createdAt,desc',
-              },
-            ),
-          ),
+  Future<ApiPage<MarketplaceMessage>> conversation(
+    int userId, {
+    bool silent = false,
+  }) async => ApiPage.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/messages/$userId',
+          queryParameters: {'page': 0, 'size': 100, 'sort': 'createdAt,desc'},
+          options: silent ? Options(extra: {'loading': false}) : null,
         ),
-        MarketplaceMessage.fromJson,
-      );
+      ),
+    ),
+    MarketplaceMessage.fromJson,
+  );
 
   Future<void> sendMessage(int userId, String content, {int? productId}) async {
     final body = <String, dynamic>{'content': content};
     if (productId != null) body['productId'] = productId;
-    await _request(() => dio.post('/messages/$userId', data: body));
+    await _request(
+      () => dio.post(
+        '/messages/$userId',
+        data: body,
+        options: Options(extra: {'loading': false}),
+      ),
+    );
   }
 
   Future<void> markConversationRead(int userId) async {
     await _request(() => dio.patch('/messages/$userId/read'));
   }
 
-  Future<ApiPage<MarketplaceNotification>> notifications() async =>
-      ApiPage.fromJson(
+  Future<ApiPage<MarketplaceNotification>> notifications({
+    int size = 50,
+    bool silent = false,
+  }) async => ApiPage.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/notifications',
+          queryParameters: {'page': 0, 'size': size},
+          options: silent ? Options(extra: {'loading': false}) : null,
+        ),
+      ),
+    ),
+    MarketplaceNotification.fromJson,
+  );
+
+  Future<int> unreadNotificationCount({bool silent = false}) async {
+    final data = asJsonMap(
+      await _request(
+        () => dio.get(
+          '/notifications/unread-count',
+          options: silent ? Options(extra: {'loading': false}) : null,
+        ),
+      ),
+    );
+    final count = data['count'];
+    return count is num ? count.toInt() : int.tryParse('$count') ?? 0;
+  }
+
+  Future<void> markNotificationRead(int id, {bool silent = false}) async {
+    await _request(
+      () => dio.patch(
+        '/notifications/$id/read',
+        options: silent ? Options(extra: {'loading': false}) : null,
+      ),
+    );
+  }
+
+  Future<void> markAllNotificationsRead({bool silent = false}) async {
+    await _request(
+      () => dio.patch(
+        '/notifications/read-all',
+        options: silent ? Options(extra: {'loading': false}) : null,
+      ),
+    );
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _request(
+      () => dio.post(
+        '/auth/change-password',
+        data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+      ),
+    );
+  }
+
+  // ── Payroll ────────────────────────────────────────────────────────────────
+
+  Future<ApiPage<EmployeeProfile>> payrollEmployees({
+    String? status,
+    String? department,
+    String? query,
+  }) async {
+    final params = <String, dynamic>{
+      'page': 0,
+      'size': 100,
+      'sort': 'employeeCode,asc',
+    };
+    if (status != null && status.isNotEmpty && status != 'ALL') {
+      params['status'] = status;
+    }
+    if (department?.trim().isNotEmpty == true) {
+      params['department'] = department!.trim();
+    }
+    if (query?.trim().isNotEmpty == true) params['q'] = query!.trim();
+    return ApiPage<EmployeeProfile>.fromJson(
+      asJsonMap(
+        await _request(
+          () => dio.get(
+            '/payroll/employees',
+            queryParameters: params,
+            options: Options(extra: {'loading': false}),
+          ),
+        ),
+      ),
+      EmployeeProfile.fromJson,
+    );
+  }
+
+  Future<EmployeeProfile> payrollEmployee(int userId) async =>
+      EmployeeProfile.fromJson(
         asJsonMap(
           await _request(
             () => dio.get(
-              '/notifications',
-              queryParameters: {'page': 0, 'size': 30},
+              '/payroll/employees/$userId',
+              options: Options(extra: {'loading': false}),
             ),
           ),
         ),
-        MarketplaceNotification.fromJson,
       );
 
-  Future<void> markNotificationRead(int id) async {
-    await _request(() => dio.patch('/notifications/$id/read'));
-  }
+  Future<EmployeeProfile> enrollPayrollEmployee(JsonMap body) async =>
+      EmployeeProfile.fromJson(
+        asJsonMap(
+          await _request(() => dio.post('/payroll/employees', data: body)),
+        ),
+      );
+
+  Future<EmployeeProfile> updatePayrollEmployee(
+    int userId,
+    JsonMap body,
+  ) async => EmployeeProfile.fromJson(
+    asJsonMap(
+      await _request(() => dio.put('/payroll/employees/$userId', data: body)),
+    ),
+  );
+
+  Future<EmployeeProfile> setPayrollEmployeeStatus(
+    int userId,
+    String status,
+  ) async => EmployeeProfile.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.patch(
+          '/payroll/employees/$userId/status',
+          data: {'status': status},
+        ),
+      ),
+    ),
+  );
+
+  Future<ApiPage<PayrollRun>> payrollRuns() async =>
+      ApiPage<PayrollRun>.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.get(
+              '/payroll/runs',
+              queryParameters: {'page': 0, 'size': 100, 'sort': 'id,desc'},
+              options: Options(extra: {'loading': false}),
+            ),
+          ),
+        ),
+        PayrollRun.fromJson,
+      );
+
+  Future<PayrollRun> payrollRun(int id) async => PayrollRun.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/payroll/runs/$id',
+          options: Options(extra: {'loading': false}),
+        ),
+      ),
+    ),
+  );
+
+  Future<PayrollRun> createPayrollRun(JsonMap body) async =>
+      PayrollRun.fromJson(
+        asJsonMap(await _request(() => dio.post('/payroll/runs', data: body))),
+      );
+
+  Future<PayrollRun> regeneratePayrollRun(int id) async => PayrollRun.fromJson(
+    asJsonMap(await _request(() => dio.post('/payroll/runs/$id/regenerate'))),
+  );
+
+  Future<ApiPage<Payslip>> payrollRunPayslips(int runId) async =>
+      ApiPage<Payslip>.fromJson(
+        asJsonMap(
+          await _request(
+            () => dio.get(
+              '/payroll/runs/$runId/payslips',
+              queryParameters: {'page': 0, 'size': 200},
+              options: Options(extra: {'loading': false}),
+            ),
+          ),
+        ),
+        Payslip.fromJson,
+      );
+
+  Future<Payslip> payrollPayslip(int id) async => Payslip.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/payroll/payslips/$id',
+          options: Options(extra: {'loading': false}),
+        ),
+      ),
+    ),
+  );
+
+  Future<Payslip> updatePayrollPayslip(int id, JsonMap body) async =>
+      Payslip.fromJson(
+        asJsonMap(
+          await _request(() => dio.patch('/payroll/payslips/$id', data: body)),
+        ),
+      );
+
+  Future<PayrollRun> approvePayrollRun(int id) async => PayrollRun.fromJson(
+    asJsonMap(await _request(() => dio.post('/payroll/runs/$id/approve'))),
+  );
+
+  Future<PayrollRun> payPayrollRun(int id) async => PayrollRun.fromJson(
+    asJsonMap(await _request(() => dio.post('/payroll/runs/$id/pay'))),
+  );
+
+  Future<PayrollRun> cancelPayrollRun(int id) async => PayrollRun.fromJson(
+    asJsonMap(await _request(() => dio.post('/payroll/runs/$id/cancel'))),
+  );
+
+  Future<EmployeeProfile> myPayrollProfile() async => EmployeeProfile.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/payroll/me/profile',
+          options: Options(extra: {'loading': false}),
+        ),
+      ),
+    ),
+  );
+
+  Future<ApiPage<Payslip>> myPayslips() async => ApiPage<Payslip>.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/payroll/me/payslips',
+          queryParameters: {'page': 0, 'size': 100, 'sort': 'id,desc'},
+          options: Options(extra: {'loading': false}),
+        ),
+      ),
+    ),
+    Payslip.fromJson,
+  );
+
+  Future<Payslip> myPayslip(int id) async => Payslip.fromJson(
+    asJsonMap(
+      await _request(
+        () => dio.get(
+          '/payroll/me/payslips/$id',
+          options: Options(extra: {'loading': false}),
+        ),
+      ),
+    ),
+  );
+
+  // ── Reports ────────────────────────────────────────────────────────────────
+
+  List<T> _reportList<T>(Object? value, T Function(JsonMap) parse) =>
+      (value as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => parse(asJsonMap(item)))
+          .toList();
+
+  Future<Object?> _report(String path, [Map<String, dynamic>? query]) =>
+      _request(
+        () => dio.get(
+          path,
+          queryParameters: query,
+          options: Options(extra: {'loading': false}),
+        ),
+      );
+
+  Future<ReportOverview> reportOverview() async =>
+      ReportOverview.fromJson(asJsonMap(await _report('/reports/overview')));
+
+  Future<List<ProductStatusReport>> reportProductStatus() async => _reportList(
+    await _report('/reports/product-status'),
+    ProductStatusReport.fromJson,
+  );
+
+  Future<List<CategoryReport>> reportCategories() async => _reportList(
+    await _report('/reports/categories'),
+    CategoryReport.fromJson,
+  );
+
+  Future<List<MonthlyActivityReport>> reportMonthlyActivity({
+    int months = 12,
+  }) async => _reportList(
+    await _report('/reports/monthly-activity', {'months': months}),
+    MonthlyActivityReport.fromJson,
+  );
+
+  Future<List<EngagementReport>> reportEngagement({int months = 12}) async =>
+      _reportList(
+        await _report('/reports/engagement', {'months': months}),
+        EngagementReport.fromJson,
+      );
+
+  Future<List<TopSellerReport>> reportTopSellers({int limit = 8}) async =>
+      _reportList(
+        await _report('/reports/top-sellers', {'limit': limit}),
+        TopSellerReport.fromJson,
+      );
+
+  Future<List<PayrollDepartmentReport>> reportPayrollDepartments() async =>
+      _reportList(
+        await _report('/reports/payroll/departments'),
+        PayrollDepartmentReport.fromJson,
+      );
+
+  Future<List<PayrollRunReport>> reportPayrollRuns({int limit = 12}) async =>
+      _reportList(
+        await _report('/reports/payroll/runs', {'limit': limit}),
+        PayrollRunReport.fromJson,
+      );
+
+  Future<List<HeadcountReport>> reportHeadcount() async => _reportList(
+    await _report('/reports/payroll/headcount'),
+    HeadcountReport.fromJson,
+  );
 
   static String errorMessage(Object error) {
     if (error is DioException) {

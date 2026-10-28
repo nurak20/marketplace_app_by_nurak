@@ -1,15 +1,18 @@
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'dart:async';
+
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
-import '../../shell/bottom_navigation_visibility.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
+import '../../core/components/localized_builder.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/marketplace_post_card.dart';
 import '../../core/components/show_error.dart';
+import '../../core/l10n_labels.dart';
 import '../../core/models.dart';
 import 'marketplace_options.dart';
 
@@ -31,6 +34,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final Map<(int, int), int> _likeCountOverrides = {};
   int? _savingId;
 
+  List<MarketplaceCategory> get _categoryItems {
+    final names = api.marketplaceCategoryNames;
+    return marketplaceItemsForCategories(
+      names ?? marketplaceCategories.skip(1),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +52,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _likedOverrides.clear();
     _likeCountOverrides.clear();
     _posts = api.posts();
+    unawaited(_refreshCategoryItems(_posts));
+  }
+
+  Future<void> _refreshCategoryItems(
+    Future<ApiPage<MarketplacePost>> request,
+  ) async {
+    try {
+      await request;
+      if (mounted) setState(() {});
+    } catch (_) {
+      // The page's FutureBuilder renders the request error.
+    }
   }
 
   Future<void> _refresh() async {
@@ -124,8 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _openSearch() async {
-    await hideBottomNavigationWhile(() => context.push<void>('/search'));
+  void _openSearch() {
+    context.push<void>('/search');
   }
 
   List<MarketplacePost> _filterPosts(List<MarketplacePost> posts) {
@@ -140,18 +162,19 @@ class _HomeScreenState extends State<HomeScreen> {
           }).toList();
           return post.withProducts(products);
         })
-        .where((post) => post.products.isNotEmpty)
+        .where((post) => post.isRemoved || post.products.isNotEmpty)
         .toList();
   }
 
   Widget _categoryTile(MarketplaceCategory item) {
     final selected = _category == item.name;
     final color = selected ? _darkGreen : StyleColor.ink;
+    final label = categoryLabel(item.name);
 
     return Semantics(
       button: true,
       selected: selected,
-      label: item.name,
+      label: label,
       child: Material(
         color: Colors.white,
         shape: RoundedRectangleBorder(
@@ -175,7 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item.name,
+                  label,
                   maxLines: 1,
                   style: TextStyle(
                     color: color,
@@ -192,104 +215,103 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => AdaptiveScaffold(
-    appBar: MarketplaceAppBar(
-      title: 'Nurak MK27',
-      actions: [
-        AdaptiveAppBarAction(
-          iosSymbol: 'magnifyingglass',
-          icon: Icons.search_rounded,
-          label: 'Search',
-          onPressed: _openSearch,
-        ),
-      ],
-    ).build(context),
-    body: RefreshIndicator(
-      onRefresh: _refresh,
-      child: CustomScrollView(
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.all(10),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 110),
-                  SizedBox(
-                    height: 68,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: marketplaceCategoryItems.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) =>
-                          _categoryTile(marketplaceCategoryItems[index]),
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                ],
-              ),
-            ),
-          ),
-
-          FutureBuilder<ApiPage<MarketplacePost>>(
-            future: _posts,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(child: SizedBox.shrink());
-              }
-              if (snapshot.hasError) {
-                return SliverToBoxAdapter(
-                  child: ErrorRetryPanel(
-                    error: snapshot.error!,
-                    onRetry: _refresh,
-                  ),
-                );
-              }
-              final posts = _filterPosts(snapshot.data?.items ?? const []);
-              if (posts.isEmpty) {
-                return const SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 260,
-                    child: EmptyState(
-                      title: 'No listings yet',
-                      message:
-                          'Try another category or be the first to list something.',
-                      icon: Icons.storefront_outlined,
-                    ),
-                  ),
-                );
-              }
-              return SliverList.separated(
-                itemCount: posts.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 5),
-                itemBuilder: (context, index) {
-                  final post = posts[index];
-                  return MarketplacePostCard(
-                    key: ValueKey(post.id),
-                    post: post,
-                    isLiked: (post, product) =>
-                        _likedOverrides[(post.id, product.id)] ??
-                        post.engagementFor(product).hasReacted,
-                    likeCount: (post, product) =>
-                        _likeCountOverrides[(post.id, product.id)] ??
-                        post.engagementFor(product).reactionCount,
-                    isLiking: (post, product) =>
-                        _likingIds.contains((post.id, product.id)),
-                    onLike: _toggleLike,
-                    onComment: _openComments,
-                    isSaved: (product) =>
-                        _savedOverrides[product.id] ?? product.isSaved,
-                    onSave: _toggleSaved,
-                    onProductTap: _openProduct,
-                  );
-                },
-              );
-            },
-          ),
-          const SliverToBoxAdapter(
-            child: SizedBox(height: StyleSpacing.bottomContentClearance),
+  Widget build(BuildContext context) => LocalizedBuilder(
+    builder: (context) => Scaffold(
+      appBar: MarketplaceAppBar(
+        title: 'Nurak MK27',
+        actions: [
+          IconButton(
+            tooltip: 'common.search'.tr(),
+            onPressed: _openSearch,
+            icon: const Icon(Icons.search_rounded),
           ),
         ],
+      ).build(context),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(10),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 68,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _categoryItems.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) =>
+                            _categoryTile(_categoryItems[index]),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                ),
+              ),
+            ),
+
+            FutureBuilder<ApiPage<MarketplacePost>>(
+              future: _posts,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SliverToBoxAdapter(child: SizedBox.shrink());
+                }
+                if (snapshot.hasError) {
+                  return SliverToBoxAdapter(
+                    child: ErrorRetryPanel(
+                      error: snapshot.error!,
+                      onRetry: _refresh,
+                    ),
+                  );
+                }
+                final posts = _filterPosts(snapshot.data?.items ?? const []);
+                if (posts.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 260,
+                      child: EmptyState(
+                        title: 'home.noListingsTitle'.tr(),
+                        message: 'home.noListingsMessage'.tr(),
+                        icon: Icons.storefront_outlined,
+                      ),
+                    ),
+                  );
+                }
+                return SliverList.separated(
+                  itemCount: posts.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 5),
+                  itemBuilder: (context, index) {
+                    final post = posts[index];
+                    return MarketplacePostCard(
+                      key: ValueKey(post.id),
+                      post: post,
+                      isLiked: (post, product) =>
+                          _likedOverrides[(post.id, product.id)] ??
+                          post.engagementFor(product).hasReacted,
+                      likeCount: (post, product) =>
+                          _likeCountOverrides[(post.id, product.id)] ??
+                          post.engagementFor(product).reactionCount,
+                      isLiking: (post, product) =>
+                          _likingIds.contains((post.id, product.id)),
+                      onLike: _toggleLike,
+                      onComment: _openComments,
+                      isSaved: (product) =>
+                          _savedOverrides[product.id] ?? product.isSaved,
+                      onSave: _toggleSaved,
+                      onProductTap: _openProduct,
+                    );
+                  },
+                );
+              },
+            ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: StyleSpacing.bottomContentClearance),
+            ),
+          ],
+        ),
       ),
     ),
   );

@@ -1,13 +1,13 @@
-import 'package:flutter/cupertino.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 
 import 'core/api.dart';
 import 'core/app_theme.dart';
+import 'core/notification_hub.dart';
 import 'core/session_store.dart';
 import 'core/singleton.dart';
 import 'features/auth/auth_screens.dart';
@@ -17,11 +17,15 @@ import 'features/dev/api_base_url_screen.dart';
 import 'features/marketplace/marketplace_screens.dart';
 import 'features/marketplace/comments_screen.dart';
 import 'features/marketplace/search_screen.dart';
+import 'features/management/management_screen.dart';
 import 'features/notifications/notifications_screen.dart';
+import 'features/payroll/my_payslips_screen.dart';
+import 'features/payroll/payroll_screen.dart';
+import 'features/profile/change_password_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/reports/reports_screen.dart';
 import 'features/reviews/review_screen.dart';
 import 'shell/app_shell.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 
 CustomTransitionPage<void> _fadeTabPage(GoRouterState state, Widget child) =>
     CustomTransitionPage<void>(
@@ -35,12 +39,26 @@ CustomTransitionPage<void> _fadeTabPage(GoRouterState state, Widget child) =>
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized();
   await api.initialize();
+  NotificationHub.instance.start();
   if (kIsWeb) usePathUrlStrategy();
   runApp(
-    ChangeNotifierProvider<Singleton>.value(
-      value: Singleton.instance,
-      child: const MarketplaceApp(),
+    EasyLocalization(
+      supportedLocales: const [Locale('en'), Locale('km')],
+      path: 'lib/assets/translations',
+      fallbackLocale: const Locale('en'),
+      useOnlyLangCode: true,
+      useFallbackTranslations: true,
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider<Singleton>.value(value: Singleton.instance),
+          ChangeNotifierProvider<NotificationHub>.value(
+            value: NotificationHub.instance,
+          ),
+        ],
+        child: const MarketplaceApp(),
+      ),
     ),
   );
 }
@@ -69,7 +87,7 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       ShellRoute(
         builder: (_, state, child) =>
-            AppShell(location: state.matchedLocation, child: child),
+            AppShell(location: state.uri.path, child: child),
         routes: [
           GoRoute(
             path: '/',
@@ -102,8 +120,22 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
                 _fadeTabPage(state, const ProfileScreen()),
           ),
           GoRoute(
+            path: '/me/payslips',
+            builder: (_, _) => const MyPayslipsScreen(),
+          ),
+          GoRoute(
+            path: '/me/change-password',
+            builder: (_, _) => const ChangePasswordScreen(),
+          ),
+          GoRoute(path: '/payroll', builder: (_, _) => const PayrollScreen()),
+          GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
+          GoRoute(
+            path: '/management',
+            builder: (_, _) => const ManagementScreen(),
+          ),
+          GoRoute(
             path: '/search',
-            pageBuilder: (_, state) => CupertinoPage<void>(
+            pageBuilder: (_, state) => MaterialPage<void>(
               key: state.pageKey,
               fullscreenDialog: true,
               child: const ProductSearchScreen(),
@@ -159,40 +191,33 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
     final onAuthPage = location == '/login' || location == '/register';
     if (!session.isAuthenticated && !onAuthPage) return '/login';
     if (session.isAuthenticated && onAuthPage) return '/';
+    if (session.isAuthenticated &&
+        location == '/sell' &&
+        Singleton.instance.account?.canSell == false) {
+      return '/';
+    }
     return null;
   }
 
   @override
-  Widget build(BuildContext context) => AdaptiveApp.router(
-    title: 'Nurak MK27',
-    themeMode: ThemeMode.system,
-    materialLightTheme: buildAppTheme(),
-    materialDarkTheme: buildAppTheme(),
-    cupertinoLightTheme: MaterialBasedCupertinoThemeData(
-      materialTheme: buildAppTheme(),
-    ),
-    cupertinoDarkTheme: MaterialBasedCupertinoThemeData(
-      materialTheme: buildAppTheme(),
-    ),
-
-    localizationsDelegates: const [
-      GlobalWidgetsLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: const [Locale('en')],
-    builder: (context, child) => Localizations(
-      locale: const Locale('en'),
-      delegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      child: AdaptiveToolbarHost(child: child ?? const SizedBox.shrink()),
-    ),
-    routerConfig: _router,
-    // debugShowCheckedModeBanner: false,
-  );
+  Widget build(BuildContext context) {
+    final localization = EasyLocalization.of(context)!;
+    return MaterialApp.router(
+      title: 'Nurak MK27',
+      themeMode: ThemeMode.system,
+      theme: buildAppTheme(),
+      darkTheme: buildAppTheme(),
+      // Keep large accessibility text from breaking fixed-height rows and chips.
+      builder: (context, child) => MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: child ?? const SizedBox.shrink(),
+      ),
+      locale: localization.locale,
+      supportedLocales: localization.supportedLocales,
+      localizationsDelegates: localization.delegates,
+      routerConfig: _router,
+    );
+  }
 
   @override
   void dispose() {

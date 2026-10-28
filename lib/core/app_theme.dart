@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 
 abstract final class StyleColor {
   static const double iconSize = 20;
@@ -16,7 +15,7 @@ abstract final class StyleColor {
 }
 
 abstract final class StyleFont {
-  static const family = 'Roboto';
+  static const family = 'KSR';
   static const mediumSize = 14.0;
   static const largeSize = 18.0;
 }
@@ -87,9 +86,6 @@ ThemeData buildAppTheme() {
         fontSize: StyleFont.largeSize,
         fontWeight: FontWeight.w400,
       ),
-    ),
-    cupertinoOverrideTheme: CupertinoThemeData(
-      barBackgroundColor: Colors.white.withValues(alpha: .7),
     ),
     cardTheme: CardThemeData(
       color: Colors.white,

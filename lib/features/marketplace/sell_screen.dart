@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,9 +8,12 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/choose_image_bottom_sheet.dart';
+import '../../core/components/localized_builder.dart';
 import '../../core/components/marketplace_app_bar.dart';
+import '../../core/components/mk_text_form_field.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
+import '../../core/l10n_labels.dart';
 import '../../core/models.dart';
 import 'marketplace_options.dart';
 
@@ -44,10 +47,42 @@ class _SellScreenState extends State<SellScreen> {
   final _caption = TextEditingController();
   final List<_ProductDraft> _products = [_ProductDraft()];
   bool _busy = false;
+  bool _optionsLoading = true;
 
   // Built once so the text fields always get the 0.5 / 1 border theme,
   // even when the adaptive scaffold does not pass the Material theme down.
   final ThemeData _theme = buildAppTheme();
+  List<String> _categories = marketplaceCategories.skip(1).toList();
+  List<String> _conditions = productConditions;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    try {
+      final options = await api.marketplaceOptions();
+      if (!mounted) return;
+      setState(() {
+        _categories = options.categories;
+        _conditions = options.conditions;
+        for (final product in _products) {
+          if (!_categories.contains(product.category)) {
+            product.category = _categories.isEmpty ? '' : _categories.first;
+          }
+          if (!_conditions.contains(product.condition)) {
+            product.condition = _conditions.isEmpty ? '' : _conditions.first;
+          }
+        }
+      });
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      if (mounted) setState(() => _optionsLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -58,7 +93,18 @@ class _SellScreenState extends State<SellScreen> {
     super.dispose();
   }
 
-  void _addProduct() => setState(() => _products.add(_ProductDraft()));
+  _ProductDraft _newProductDraft() {
+    final product = _ProductDraft();
+    if (!_categories.contains(product.category)) {
+      product.category = _categories.isEmpty ? '' : _categories.first;
+    }
+    if (!_conditions.contains(product.condition)) {
+      product.condition = _conditions.isEmpty ? '' : _conditions.first;
+    }
+    return product;
+  }
+
+  void _addProduct() => setState(() => _products.add(_newProductDraft()));
 
   void _removeProduct(_ProductDraft product) {
     if (_products.length == 1) return;
@@ -96,7 +142,7 @@ class _SellScreenState extends State<SellScreen> {
     'title': draft.title.text.trim(),
     'description': draft.description.text.trim(),
     'price': double.parse(draft.price.text),
-    'category': draft.category,
+    'category': draft.category.isEmpty ? null : draft.category,
     'condition': draft.condition,
     'location': draft.location.text.trim(),
   };
@@ -105,10 +151,15 @@ class _SellScreenState extends State<SellScreen> {
     final caption = _caption.text.trim();
     if (caption.isNotEmpty) return caption;
     if (titles.length == 1) return titles.first;
-    return 'For sale: ${titles.join(', ')}';
+    return 'sell.postFallback'.tr(namedArgs: {'titles': titles.join(', ')});
   }
 
   Future<void> _publish() async {
+    if (_optionsLoading) return;
+    if (_conditions.isEmpty) {
+      showError(context, StateError('sell.noConditionsError'.tr()));
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
     try {
@@ -132,7 +183,7 @@ class _SellScreenState extends State<SellScreen> {
 
       if (!mounted) return;
       if (post.products.isEmpty) {
-        throw StateError('The API created the post without its products.');
+        throw StateError('sell.missingProductsError'.tr());
       }
       final firstProduct = post.products.first;
       context.go('/products/${firstProduct.id}?postId=${post.id}');
@@ -148,10 +199,10 @@ class _SellScreenState extends State<SellScreen> {
     children: [
       Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
-              'Product photos',
-              style: TextStyle(fontWeight: FontWeight.w400),
+              'sell.productPhotos'.tr(),
+              style: const TextStyle(fontWeight: FontWeight.w400),
             ),
           ),
           TextButton.icon(
@@ -195,7 +246,7 @@ class _SellScreenState extends State<SellScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Product ${index + 1}',
+                  'sell.productNumber'.tr(namedArgs: {'index': '${index + 1}'}),
                   style: const TextStyle(
                     fontSize: StyleFont.largeSize,
                     fontWeight: FontWeight.w400,
@@ -205,82 +256,107 @@ class _SellScreenState extends State<SellScreen> {
               if (_products.length > 1)
                 IconButton(
                   onPressed: () => _removeProduct(product),
-                  tooltip: 'Remove product',
+                  tooltip: 'sell.removeProduct'.tr(),
                   icon: const Icon(Icons.delete_outline_rounded),
                 ),
             ],
           ),
           _photoPicker(product),
           const SizedBox(height: 10),
-          TextFormField(
+          MKTextFormField(
             controller: product.title,
-            decoration: const InputDecoration(labelText: 'Product title'),
-            validator: (value) =>
-                value == null || value.trim().isEmpty ? 'Add a title' : null,
+            decoration: InputDecoration(labelText: 'sell.productTitle'.tr()),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'sell.titleRequired'.tr()
+                : null,
           ),
           const SizedBox(height: 12),
-          TextFormField(
+          MKTextFormField(
             controller: product.description,
             minLines: 2,
             maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Description',
+            decoration: InputDecoration(
+              labelText: 'sell.description'.tr(),
               alignLabelWithHint: true,
             ),
           ),
           const SizedBox(height: 12),
-          TextFormField(
+          MKTextFormField(
             controller: product.price,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Price in USD',
+            decoration: InputDecoration(
+              labelText: 'sell.priceUsd'.tr(),
               prefixText: '\$ ',
             ),
             validator: (value) {
               final amount = double.tryParse(value ?? '');
               return amount == null || amount <= 0
-                  ? 'Enter a price greater than zero'
+                  ? 'sell.priceInvalid'.tr()
                   : null;
             },
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            initialValue: product.category,
-            decoration: const InputDecoration(labelText: 'Category'),
-            items: marketplaceCategories
-                .skip(1)
-                .map(
-                  (value) => DropdownMenuItem(value: value, child: Text(value)),
-                )
-                .toList(),
-            onChanged: (value) =>
-                setState(() => product.category = value ?? product.category),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: product.condition,
-            decoration: const InputDecoration(labelText: 'Condition'),
-            items: productConditions
+            initialValue: _categories.contains(product.category)
+                ? product.category
+                : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'sell.category'.tr(),
+              hintText: _categories.isEmpty
+                  ? 'sell.noActiveCategories'.tr()
+                  : null,
+            ),
+            items: _categories
                 .map(
                   (value) => DropdownMenuItem(
                     value: value,
-                    child: Text(value.replaceAll('_', ' ')),
+                    child: Text(categoryLabel(value)),
                   ),
                 )
                 .toList(),
-            onChanged: (value) =>
-                setState(() => product.condition = value ?? product.condition),
+            onChanged: _categories.isEmpty
+                ? null
+                : (value) => setState(
+                    () => product.category = value ?? product.category,
+                  ),
           ),
           const SizedBox(height: 12),
-          TextFormField(
+          DropdownButtonFormField<String>(
+            initialValue: _conditions.contains(product.condition)
+                ? product.condition
+                : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'sell.condition'.tr(),
+              hintText: _conditions.isEmpty
+                  ? 'sell.noActiveConditions'.tr()
+                  : null,
+            ),
+            items: _conditions
+                .map(
+                  (value) => DropdownMenuItem(
+                    value: value,
+                    child: Text(conditionLabel(value)),
+                  ),
+                )
+                .toList(),
+            onChanged: _conditions.isEmpty
+                ? null
+                : (value) => setState(
+                    () => product.condition = value ?? product.condition,
+                  ),
+          ),
+          const SizedBox(height: 12),
+          MKTextFormField(
             controller: product.location,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Location',
-              prefixIcon: Icon(Icons.location_on_outlined),
+            decoration: InputDecoration(
+              labelText: 'sell.location'.tr(),
+              prefixIcon: const Icon(Icons.location_on_outlined),
             ),
             validator: (value) => value == null || value.trim().isEmpty
-                ? 'Add your location'
+                ? 'sell.locationRequired'.tr()
                 : null,
           ),
         ],
@@ -289,56 +365,71 @@ class _SellScreenState extends State<SellScreen> {
   );
 
   @override
-  Widget build(BuildContext context) => AdaptiveScaffold(
-    appBar: const MarketplaceAppBar(
-      title: 'Create a post',
-      showNotifications: false,
-      showProfileAvatar: false,
-    ).build(context),
-    body: Theme(
-      data: _theme,
-      child: Material(
-        type: MaterialType.transparency,
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-            children: [
-              AbsorbPointer(
-                absorbing: _busy,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _caption,
-                      minLines: 1,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Post message (optional)',
-                        hintText: 'Write a message for these products',
+  Widget build(BuildContext context) => LocalizedBuilder(
+    builder: (context) => Scaffold(
+      appBar: MarketplaceAppBar(
+        title: 'sell.title'.tr(),
+        showNotifications: false,
+        showProfileAvatar: false,
+      ).build(context),
+      body: Theme(
+        data: _theme,
+        child: Material(
+          type: MaterialType.transparency,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+              children: [
+                if (!_optionsLoading && _categories.isEmpty)
+                  _OptionsNotice(
+                    icon: Icons.category_outlined,
+                    message: 'sell.noCategoriesNotice'.tr(),
+                  ),
+                if (!_optionsLoading && _conditions.isEmpty)
+                  _OptionsNotice(
+                    icon: Icons.fact_check_outlined,
+                    message: 'sell.conditionsUnavailableNotice'.tr(),
+                  ),
+                AbsorbPointer(
+                  absorbing: _busy || _optionsLoading,
+                  child: Column(
+                    children: [
+                      MKTextFormField(
+                        controller: _caption,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'sell.postMessageOptional'.tr(),
+                          hintText: 'sell.postMessageHint'.tr(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    for (var i = 0; i < _products.length; i++) ...[
-                      _productEditor(_products[i], i),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
+                      for (var i = 0; i < _products.length; i++) ...[
+                        _productEditor(_products[i], i),
+                        const SizedBox(height: 12),
+                      ],
+                      OutlinedButton.icon(
+                        onPressed: _addProduct,
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: Text('sell.addAnotherProduct'.tr()),
+                      ),
                     ],
-                    OutlinedButton.icon(
-                      onPressed: _addProduct,
-                      icon: const Icon(Icons.add_circle_outline_rounded),
-                      label: const Text('Add another product'),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              PrimaryButton(
-                label:
-                    'Publish ${_products.length} product${_products.length == 1 ? '' : 's'} in one post',
-                busy: _busy,
-                onPressed: _publish,
-              ),
-              const SizedBox(height: StyleSpacing.bottomContentClearance),
-            ],
+                const SizedBox(height: 14),
+                PrimaryButton(
+                  label: _products.length == 1
+                      ? 'sell.publishOne'.tr()
+                      : 'sell.publishMany'.tr(
+                          namedArgs: {'count': '${_products.length}'},
+                        ),
+                  busy: _busy || _optionsLoading,
+                  onPressed: _publish,
+                ),
+                const SizedBox(height: StyleSpacing.bottomContentClearance),
+              ],
+            ),
           ),
         ),
       ),
@@ -362,7 +453,7 @@ class _PhotoTile extends StatelessWidget {
           right: 4,
           child: IconButton.filled(
             onPressed: onRemove,
-            tooltip: 'Remove photo',
+            tooltip: 'sell.removePhoto'.tr(),
             icon: const Icon(Icons.close, size: StyleColor.iconSize),
             style: IconButton.styleFrom(
               iconSize: StyleColor.iconSize,
@@ -374,6 +465,36 @@ class _PhotoTile extends StatelessWidget {
           ),
         ),
       ],
+    ),
+  );
+}
+
+class _OptionsNotice extends StatelessWidget {
+  const _OptionsNotice({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Card(
+      color: const Color(0xFFFFF8E9),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(icon, color: StyleColor.ink),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: StyleColor.ink),
+              ),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

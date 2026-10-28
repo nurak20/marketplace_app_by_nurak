@@ -1,14 +1,18 @@
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
+import '../../core/components/mk_text_form_field.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/error_retry_panel.dart';
+import '../../core/components/localized_builder.dart';
 import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/product_artwork.dart';
+import '../../core/components/product_card.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
+import '../../core/l10n_labels.dart';
 import '../../core/models.dart';
 import '../../core/singleton.dart';
 
@@ -24,6 +28,7 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   final _commentComposer = TextEditingController();
   late Future<Product> _product;
+  Future<MarketplacePost>? _post;
   PostComment? _replyTo;
   bool? _savedOverride;
   bool? _likedOverride;
@@ -45,6 +50,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     _likedOverride = null;
     _likeCountOverride = null;
     _product = _loadProduct();
+    _post = widget.postId == null ? null : api.post(widget.postId!);
   }
 
   Future<Product> _loadProduct() =>
@@ -164,9 +170,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Widget _reviewSection(Product product) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _SectionTitle('Reviews (${product.reviews.length})'),
+      _SectionTitle(
+        'product.reviewsTitle'.tr(
+          namedArgs: {'count': '${product.reviews.length}'},
+        ),
+      ),
       if (product.reviews.isEmpty)
-        const _SectionMessage('No reviews yet.')
+        _SectionMessage('product.noReviews'.tr())
       else
         ...product.reviews.map(
           (review) => Card(
@@ -190,7 +200,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const Spacer(),
                       Text(
-                        'Buyer #${review.buyerId}',
+                        'product.buyerFallback'.tr(
+                          namedArgs: {'id': '${review.buyerId}'},
+                        ),
                         style: const TextStyle(color: StyleColor.muted),
                       ),
                     ],
@@ -244,7 +256,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         child: TextButton.icon(
                           onPressed: () => setState(() => _replyTo = comment),
                           icon: const Icon(Icons.reply_rounded, size: 18),
-                          label: const Text('Reply'),
+                          label: Text('product.reply'.tr()),
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             minimumSize: const Size(0, 32),
@@ -275,16 +287,70 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     ),
   );
 
+  Widget _postProductsSection() {
+    final postFuture = _post;
+    if (postFuture == null) return const SizedBox.shrink();
+    return FutureBuilder<MarketplacePost>(
+      future: postFuture,
+      builder: (context, snapshot) {
+        final post = snapshot.data;
+        if (post == null) return const SizedBox.shrink();
+        final others = post.products
+            .where((item) => item.id != widget.productId)
+            .toList();
+        if (others.isEmpty) return const SizedBox.shrink();
+        final content = post.content?.trim();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionTitle(
+              'product.otherItemsTitle'.tr(
+                namedArgs: {'count': '${post.products.length}'},
+              ),
+            ),
+            if (content != null && content.isNotEmpty) ...[
+              Text(content, style: const TextStyle(height: 1.45)),
+              const SizedBox(height: 10),
+            ],
+            SizedBox(
+              height: 232,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: others.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final item = others[index];
+                  return SizedBox(
+                    width: 172,
+                    child: ProductCard(
+                      product: item,
+                      onTap: () => context.push(
+                        '/products/${item.id}?postId=${widget.postId}',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _commentsSection(Product product) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _SectionTitle('Comments (${product.totalComment})'),
+      _SectionTitle(
+        'product.commentsTitle'.tr(
+          namedArgs: {'count': '${product.totalComment}'},
+        ),
+      ),
       if (widget.postId == null)
-        const _SectionMessage(
-          'Open this item from its listing to join the discussion.',
-        )
+        _SectionMessage('product.openFromListing'.tr())
       else if (product.comments.isEmpty)
-        const _SectionMessage('No comments yet. Start the conversation.')
+        _SectionMessage('product.noComments'.tr())
       else
         ...product.comments.map(_commentTile),
       if (widget.postId != null) ...[
@@ -293,13 +359,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Replying to ${_replyTo!.displayName}',
+                  'product.replyingTo'.tr(
+                    namedArgs: {'name': _replyTo!.displayName},
+                  ),
                   style: const TextStyle(color: StyleColor.muted),
                 ),
               ),
               IconButton(
                 onPressed: () => setState(() => _replyTo = null),
-                tooltip: 'Cancel reply',
+                tooltip: 'product.cancelReply'.tr(),
                 icon: const Icon(Icons.close_rounded),
               ),
             ],
@@ -308,23 +376,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: TextField(
+              child: MKTextFormField(
                 controller: _commentComposer,
                 minLines: 1,
                 maxLines: 3,
                 textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendComment(),
+                onFieldSubmitted: (_) => _sendComment(),
                 decoration: InputDecoration(
                   hintText: _replyTo == null
-                      ? 'Add a comment'
-                      : 'Write a reply',
+                      ? 'product.addComment'.tr()
+                      : 'product.writeReply'.tr(),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             IconButton.filled(
               onPressed: _sendingComment ? null : _sendComment,
-              tooltip: 'Post comment',
+              tooltip: 'product.postComment'.tr(),
               icon: const Icon(Icons.send_rounded),
             ),
           ],
@@ -334,208 +402,231 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   );
 
   @override
-  Widget build(BuildContext context) => AdaptiveScaffold(
-    appBar: const MarketplaceAppBar(
-      title: 'Product details',
-      showNotifications: false,
-      showProfileAvatar: false,
-    ).build(context),
-    body: Material(
-      type: MaterialType.transparency,
-      child: FutureBuilder<Product>(
-        future: _product,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox.shrink();
-          }
-          if (snapshot.hasError) {
-            return ErrorRetryPanel(
-              error: snapshot.error!,
-              onRetry: () => setState(_load),
-            );
-          }
+  Widget build(BuildContext context) => LocalizedBuilder(
+    builder: (context) => Scaffold(
+      appBar: MarketplaceAppBar(
+        title: 'product.details'.tr(),
+        showNotifications: false,
+        showProfileAvatar: false,
+      ).build(context),
+      body: Material(
+        type: MaterialType.transparency,
+        child: FutureBuilder<Product>(
+          future: _product,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox.shrink();
+            }
+            if (snapshot.hasError) {
+              return ErrorRetryPanel(
+                error: snapshot.error!,
+                onRetry: () => setState(_load),
+              );
+            }
 
-          final product = snapshot.data!;
-          final seller = product.seller;
-          final currentUserId = Singleton.instance.account?.profile.id;
-          final ownProduct = currentUserId == product.sellerId;
-          final chatRoute =
-              '/chats/${product.sellerId}?productId=${product.id}';
+            final product = snapshot.data!;
+            final seller = product.seller;
+            final currentUserId = Singleton.instance.account?.profile.id;
+            final ownProduct = currentUserId == product.sellerId;
+            final chatRoute =
+                '/chats/${product.sellerId}?productId=${product.id}';
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 30),
-            children: [
-              _ProductImageGallery(
-                product: product,
-                currentIndex: _imageIndex,
-                onPageChanged: (index) => setState(() => _imageIndex = index),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '\$${product.price.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: StyleFont.largeSize,
-                        fontWeight: FontWeight.w400,
-                        color: StyleColor.ink,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _saving ? null : () => _toggleSaved(product),
-                    tooltip: (_savedOverride ?? product.isSaved)
-                        ? 'Remove from saved'
-                        : 'Save item',
-                    icon: Icon(
-                      (_savedOverride ?? product.isSaved)
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: (_savedOverride ?? product.isSaved)
-                          ? StyleColor.accent
-                          : StyleColor.muted,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                product.title,
-                style: const TextStyle(
-                  fontSize: StyleFont.largeSize,
-                  fontWeight: FontWeight.w400,
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 30),
+              children: [
+                _ProductImageGallery(
+                  product: product,
+                  currentIndex: _imageIndex,
+                  onPageChanged: (index) => setState(() => _imageIndex = index),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: [
-                  _Tag(text: product.condition.replaceAll('_', ' ')),
-                  if (product.category?.isNotEmpty == true)
-                    _Tag(text: product.category!),
-                  _Tag(
-                    text: product.status.replaceAll('_', ' '),
-                    highlight: product.status == 'SOLD',
-                  ),
-                ],
-              ),
-              if (product.location?.isNotEmpty == true) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: StyleColor.iconSize,
-                      color: StyleColor.muted,
+                    Expanded(
+                      child: Text(
+                        '\$${product.price.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: StyleFont.largeSize,
+                          fontWeight: FontWeight.w400,
+                          color: StyleColor.ink,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      product.location!,
-                      style: const TextStyle(color: StyleColor.muted),
+                    IconButton(
+                      onPressed: _saving ? null : () => _toggleSaved(product),
+                      tooltip: (_savedOverride ?? product.isSaved)
+                          ? 'postCard.removeSaved'.tr()
+                          : 'postCard.saveItem'.tr(),
+                      icon: Icon(
+                        (_savedOverride ?? product.isSaved)
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: (_savedOverride ?? product.isSaved)
+                            ? StyleColor.accent
+                            : StyleColor.muted,
+                      ),
                     ),
                   ],
                 ),
-              ],
-              if (product.description?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 Text(
-                  product.description!,
-                  style: const TextStyle(height: 1.45),
+                  product.title,
+                  style: const TextStyle(
+                    fontSize: StyleFont.largeSize,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (widget.postId != null)
-                    TextButton.icon(
-                      onPressed: _liking ? null : () => _toggleLike(product),
-                      icon: Icon(
-                        (_likedOverride ?? product.hasLiked)
-                            ? Icons.thumb_up_rounded
-                            : Icons.thumb_up_outlined,
-                        size: 18,
-                        color: (_likedOverride ?? product.hasLiked)
-                            ? StyleColor.teal
-                            : StyleColor.muted,
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
+                    _Tag(text: conditionLabel(product.condition)),
+                    if (product.category?.isNotEmpty == true)
+                      _Tag(text: product.category!),
+                    _Tag(
+                      text: switch (product.status) {
+                        'AVAILABLE' => 'product.statusAvailable'.tr(),
+                        'SOLD' => 'product.statusSold'.tr(),
+                        _ => product.status.replaceAll('_', ' '),
+                      },
+                      highlight: product.status == 'SOLD',
+                    ),
+                  ],
+                ),
+                if (product.location?.isNotEmpty == true) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: StyleColor.iconSize,
+                        color: StyleColor.muted,
                       ),
-                      label: Text(
-                        '${_likeCountOverride ?? product.totalLike} likes',
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          product.location!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: StyleColor.muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (product.description?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    product.description!,
+                    style: const TextStyle(height: 1.45),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    if (widget.postId != null)
+                      TextButton.icon(
+                        onPressed: _liking ? null : () => _toggleLike(product),
+                        icon: Icon(
+                          (_likedOverride ?? product.hasLiked)
+                              ? Icons.thumb_up_rounded
+                              : Icons.thumb_up_outlined,
+                          size: 18,
+                          color: (_likedOverride ?? product.hasLiked)
+                              ? StyleColor.teal
+                              : StyleColor.muted,
+                        ),
+                        label: Text(
+                          'product.likesCount'.tr(
+                            namedArgs: {
+                              'count':
+                                  '${_likeCountOverride ?? product.totalLike}',
+                            },
+                          ),
+                          style: const TextStyle(color: StyleColor.muted),
+                        ),
+                      )
+                    else ...[
+                      const Icon(
+                        Icons.thumb_up_outlined,
+                        size: 18,
+                        color: StyleColor.muted,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'product.likesCount'.tr(
+                          namedArgs: {'count': '${product.totalLike}'},
+                        ),
                         style: const TextStyle(color: StyleColor.muted),
                       ),
-                    )
-                  else ...[
+                    ],
+                    const SizedBox(width: 16),
                     const Icon(
-                      Icons.thumb_up_outlined,
+                      Icons.mode_comment_outlined,
                       size: 18,
                       color: StyleColor.muted,
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      '${product.totalLike} likes',
+                      'postCard.commentsCount'.tr(
+                        namedArgs: {'count': '${product.totalComment}'},
+                      ),
                       style: const TextStyle(color: StyleColor.muted),
                     ),
                   ],
-                  const SizedBox(width: 16),
-                  const Icon(
-                    Icons.mode_comment_outlined,
-                    size: 18,
-                    color: StyleColor.muted,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    '${product.totalComment} comments',
-                    style: const TextStyle(color: StyleColor.muted),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Card(
-                child: ListTile(
-                  leading: _sellerAvatar(seller),
-                  title: Text(
-                    seller?.displayName ?? 'Seller #${product.sellerId}',
-                    style: const TextStyle(fontWeight: FontWeight.w400),
-                  ),
-                  subtitle: seller?.location?.isNotEmpty == true
-                      ? Text(seller!.location!)
-                      : null,
-                  trailing: ownProduct
-                      ? null
-                      : TextButton.icon(
-                          onPressed: () => context.push(chatRoute),
-                          icon: const Icon(Icons.chat_bubble_outline_rounded),
-                          label: const Text('Chat'),
-                        ),
-                  onTap: ownProduct ? null : () => context.push(chatRoute),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (ownProduct && product.status == 'AVAILABLE')
-                PrimaryButton(
-                  label: 'Mark as sold',
-                  busy: _updatingStatus,
-                  onPressed: () => _markSold(product),
-                )
-              else if (!ownProduct && product.status == 'SOLD')
-                PrimaryButton(
-                  label: 'Write a review',
-                  onPressed: () => _writeReview(product.id),
-                )
-              else if (!ownProduct)
-                PrimaryButton(
-                  label: 'Message seller',
-                  onPressed: () => context.push(chatRoute),
+                const SizedBox(height: 18),
+                _postProductsSection(),
+                Card(
+                  child: ListTile(
+                    leading: _sellerAvatar(seller),
+                    title: Text(
+                      seller?.displayName ??
+                          'postCard.sellerFallback'.tr(
+                            namedArgs: {'id': '${product.sellerId}'},
+                          ),
+                      style: const TextStyle(fontWeight: FontWeight.w400),
+                    ),
+                    subtitle: seller?.location?.isNotEmpty == true
+                        ? Text(seller!.location!)
+                        : null,
+                    trailing: ownProduct
+                        ? null
+                        : TextButton.icon(
+                            onPressed: () => context.push(chatRoute),
+                            icon: const Icon(Icons.chat_bubble_outline_rounded),
+                            label: Text('product.chat'.tr()),
+                          ),
+                    onTap: ownProduct ? null : () => context.push(chatRoute),
+                  ),
                 ),
-              const SizedBox(height: 12),
-              _reviewSection(product),
-              const SizedBox(height: 14),
-              _commentsSection(product),
-              const SizedBox(height: StyleSpacing.bottomContentClearance),
-            ],
-          );
-        },
+                const SizedBox(height: 12),
+                if (ownProduct && product.status == 'AVAILABLE')
+                  PrimaryButton(
+                    label: 'product.markSold'.tr(),
+                    busy: _updatingStatus,
+                    onPressed: () => _markSold(product),
+                  )
+                else if (!ownProduct && product.status == 'SOLD')
+                  PrimaryButton(
+                    label: 'product.writeReview'.tr(),
+                    onPressed: () => _writeReview(product.id),
+                  )
+                else if (!ownProduct)
+                  PrimaryButton(
+                    label: 'product.messageSeller'.tr(),
+                    onPressed: () => context.push(chatRoute),
+                  ),
+                const SizedBox(height: 12),
+                _reviewSection(product),
+                const SizedBox(height: 14),
+                _commentsSection(product),
+                const SizedBox(height: StyleSpacing.bottomContentClearance),
+              ],
+            );
+          },
+        ),
       ),
     ),
   );

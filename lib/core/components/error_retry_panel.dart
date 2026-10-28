@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -20,14 +21,14 @@ class ErrorRetryPanel extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         EmptyState(
-          title: 'Could not load this page',
+          title: 'common.loadFailed'.tr(),
           message: Api.errorMessage(error),
           icon: Icons.wifi_off_rounded,
         ),
         TextButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
-          label: const Text('Try again'),
+          label: Text('common.retry'.tr()),
         ),
       ],
     ),

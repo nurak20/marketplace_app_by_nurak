@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -31,8 +32,8 @@ abstract final class GlobalPopupDialog {
     BuildContext context, {
     required String title,
     required String message,
-    String yesText = 'Yes',
-    String noText = 'No',
+    String? yesText,
+    String? noText,
   }) => showDialog<bool>(
     context: context,
     useRootNavigator: true,
@@ -44,7 +45,7 @@ abstract final class GlobalPopupDialog {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: _buttonText(noText),
+          child: _buttonText(noText ?? 'common.no'.tr()),
         ),
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -52,7 +53,7 @@ abstract final class GlobalPopupDialog {
             backgroundColor: StyleColor.ink,
             foregroundColor: Colors.white,
           ),
-          child: _buttonText(yesText),
+          child: _buttonText(yesText ?? 'common.yes'.tr()),
         ),
       ],
     ),
@@ -61,13 +62,13 @@ abstract final class GlobalPopupDialog {
   static Future<void> success(
     BuildContext context, {
     required String message,
-    String title = 'Success',
-    String buttonText = 'OK',
+    String? title,
+    String? buttonText,
   }) => _status(
     context,
-    title: title,
+    title: title ?? 'common.success'.tr(),
     message: message,
-    buttonText: buttonText,
+    buttonText: buttonText ?? 'common.ok'.tr(),
     icon: Icons.check_circle_outline_rounded,
     color: StyleColor.success,
   );
@@ -75,13 +76,13 @@ abstract final class GlobalPopupDialog {
   static Future<void> failed(
     BuildContext context, {
     required String message,
-    String title = 'Something went wrong',
-    String buttonText = 'OK',
+    String? title,
+    String? buttonText,
   }) => _status(
     context,
-    title: title,
+    title: title ?? 'common.error'.tr(),
     message: message,
-    buttonText: buttonText,
+    buttonText: buttonText ?? 'common.ok'.tr(),
     icon: Icons.error_outline_rounded,
     color: Theme.of(context).colorScheme.error,
   );
@@ -121,9 +122,9 @@ abstract final class GlobalPopupDialog {
     );
   }
 
-  static void loading(BuildContext context, {String message = 'Loading....'}) {
+  static void loading(BuildContext context, {String? message}) {
     _legacyManualLoading = true;
-    _ensureLoadingRoute(context, message);
+    _ensureLoadingRoute(context, message ?? 'common.loading'.tr());
   }
 
   static LoadingDialogHandle? showLoading({
@@ -137,7 +138,7 @@ abstract final class GlobalPopupDialog {
     _manualLoadingCount++;
     _ensureLoadingRoute(
       context,
-      content ?? 'Loading....',
+      content ?? 'common.loading'.tr(),
       dismiss: dismiss,
       onCancel: onCancel,
     );
@@ -147,12 +148,10 @@ abstract final class GlobalPopupDialog {
     });
   }
 
-  static LoadingDialogHandle? showRequestLoading({
-    String content = 'Loading....',
-  }) {
+  static LoadingDialogHandle? showRequestLoading({String? content}) {
     final context = Singleton.instance.navigatorKey.currentContext;
     if (context == null || !context.mounted) return null;
-    return _showRequestLoadingAt(context, content);
+    return _showRequestLoadingAt(context, content ?? 'common.loading'.tr());
   }
 
   static LoadingDialogHandle _showRequestLoadingAt(
@@ -240,9 +239,12 @@ abstract final class GlobalPopupDialog {
   static Future<T> withLoading<T>(
     BuildContext context,
     Future<T> Function() request, {
-    String message = 'Loading....',
+    String? message,
   }) async {
-    final handle = _showRequestLoadingAt(context, message);
+    final handle = _showRequestLoadingAt(
+      context,
+      message ?? 'common.loading'.tr(),
+    );
     try {
       return await request();
     } finally {
@@ -363,7 +365,10 @@ class _LoadingDialogContentState extends State<_LoadingDialogContent>
         ),
         if (widget.onCancel != null) ...[
           const SizedBox(height: 16),
-          TextButton(onPressed: widget.onCancel, child: const Text('Cancel')),
+          TextButton(
+            onPressed: widget.onCancel,
+            child: Text('common.cancel'.tr()),
+          ),
         ],
       ],
     ),

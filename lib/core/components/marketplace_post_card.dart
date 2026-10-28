@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -67,7 +68,10 @@ class MarketplacePostCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            seller?.displayName ?? 'Seller #$sellerId',
+                            seller?.displayName ??
+                                'postCard.sellerFallback'.tr(
+                                  namedArgs: {'id': '$sellerId'},
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -90,175 +94,229 @@ class MarketplacePostCard extends StatelessWidget {
               },
             ),
           ),
-          if (_showContent(items.map((item) => item.$2)))
+          if (post.isRemoved)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-              child: Text(
-                post.content!.trim(),
-                style: const TextStyle(fontSize: StyleFont.mediumSize),
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: StyleColor.canvas,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.inventory_2_outlined,
+                      color: StyleColor.muted,
+                      size: 30,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'postCard.unavailable'.tr(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: StyleColor.ink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'postCard.keptForRecord'.tr(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: StyleColor.muted),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          SizedBox(
-            height: 330,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final (post, product) = items[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 15.0),
-                  child: SizedBox(
-                    width: 260,
-                    child: Card(
-                      clipBehavior: Clip.antiAlias,
-                      color: StyleColor.canvas,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Stack(
-                            children: [
-                              InkWell(
-                                onTap: () => onProductTap(post, product),
-                                child: ProductArtwork(
-                                  category: product.category,
-                                  height: 164,
-                                  image: product.primaryImage,
+            )
+          else ...[
+            if (_showContent(items.map((item) => item.$2)))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                child: Text(
+                  post.content!.trim(),
+                  style: const TextStyle(fontSize: StyleFont.mediumSize),
+                ),
+              ),
+            SizedBox(
+              height: 330,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                scrollDirection: Axis.horizontal,
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final (post, product) = items[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 15.0),
+                    child: SizedBox(
+                      width: 260,
+                      child: Card(
+                        clipBehavior: Clip.antiAlias,
+                        color: StyleColor.canvas,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Stack(
+                              children: [
+                                InkWell(
+                                  onTap: () => onProductTap(post, product),
+                                  child: ProductArtwork(
+                                    category: product.category,
+                                    height: 164,
+                                    image: product.primaryImage,
+                                  ),
                                 ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: IconButton.filledTonal(
-                                  onPressed: () => onSave(product),
-                                  tooltip: isSaved(product)
-                                      ? 'Remove from saved'
-                                      : 'Save item',
-                                  style: IconButton.styleFrom(
-                                    iconSize: StyleColor.iconSize,
-                                    backgroundColor: Colors.white.withValues(
-                                      alpha: .94,
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: IconButton.filledTonal(
+                                    onPressed: () => onSave(product),
+                                    tooltip: isSaved(product)
+                                        ? 'postCard.removeSaved'.tr()
+                                        : 'postCard.saveItem'.tr(),
+                                    style: IconButton.styleFrom(
+                                      iconSize: StyleColor.iconSize,
+                                      backgroundColor: Colors.white.withValues(
+                                        alpha: .94,
+                                      ),
+                                    ),
+                                    icon: Icon(
+                                      isSaved(product)
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
                                     ),
                                   ),
-                                  icon: Icon(
-                                    isSaved(product)
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
-                                  ),
+                                ),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () => onProductTap(post, product),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  11,
+                                  8,
+                                  11,
+                                  5,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: StyleFont.mediumSize,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '\$${product.price.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: StyleFont.mediumSize,
+                                        color: StyleColor.ink,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                          InkWell(
-                            onTap: () => onProductTap(post, product),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(11, 8, 11, 5),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(11, 0, 11, 5),
+                              child: Row(
                                 children: [
+                                  const Icon(
+                                    Icons.favorite_rounded,
+                                    size: StyleColor.iconSize,
+                                    color: StyleColor.accent,
+                                  ),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    product.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    '${likeCount(post, product)}',
                                     style: const TextStyle(
                                       fontSize: StyleFont.mediumSize,
-                                      fontWeight: FontWeight.w400,
+                                      color: StyleColor.muted,
                                     ),
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '\$${product.price.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontSize: StyleFont.mediumSize,
-                                      color: StyleColor.ink,
-                                      fontWeight: FontWeight.w400,
+                                  const Spacer(),
+                                  Flexible(
+                                    child: Text(
+                                      'postCard.commentsCount'.tr(
+                                        namedArgs: {
+                                          'count':
+                                              '${post.engagementFor(product).commentCount}',
+                                        },
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: StyleFont.mediumSize,
+                                        color: StyleColor.muted,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(11, 0, 11, 5),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.favorite_rounded,
-                                  size: StyleColor.iconSize,
-                                  color: StyleColor.accent,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${likeCount(post, product)}',
-                                  style: const TextStyle(
-                                    fontSize: StyleFont.mediumSize,
-                                    color: StyleColor.muted,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '${post.engagementFor(product).commentCount} comments',
-                                  style: const TextStyle(
-                                    fontSize: StyleFont.mediumSize,
-                                    color: StyleColor.muted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Divider(height: 1, indent: 8, endIndent: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextButton.icon(
-                                    onPressed: isLiking(post, product)
-                                        ? null
-                                        : () => onLike(post, product),
-                                    icon: Icon(
-                                      isLiked(post, product)
-                                          ? Icons.thumb_up_rounded
-                                          : Icons.thumb_up_outlined,
-                                      color: isLiked(post, product)
-                                          ? StyleColor.teal
-                                          : StyleColor.muted,
-                                      size: StyleColor.iconSize,
-                                    ),
-                                    label: Text(
-                                      'Like',
-                                      style: TextStyle(
-                                        fontSize: StyleFont.mediumSize,
+                            const Divider(height: 1, indent: 8, endIndent: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextButton.icon(
+                                      onPressed: isLiking(post, product)
+                                          ? null
+                                          : () => onLike(post, product),
+                                      icon: Icon(
+                                        isLiked(post, product)
+                                            ? Icons.thumb_up_rounded
+                                            : Icons.thumb_up_outlined,
                                         color: isLiked(post, product)
                                             ? StyleColor.teal
                                             : StyleColor.muted,
+                                        size: StyleColor.iconSize,
+                                      ),
+                                      label: Text(
+                                        'postCard.like'.tr(),
+                                        style: TextStyle(
+                                          fontSize: StyleFont.mediumSize,
+                                          color: isLiked(post, product)
+                                              ? StyleColor.teal
+                                              : StyleColor.muted,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: TextButton.icon(
-                                    onPressed: () => onComment(post, product),
-                                    icon: const Icon(
-                                      Icons.mode_comment_outlined,
-                                      color: StyleColor.muted,
-                                      size: StyleColor.iconSize,
+                                  Expanded(
+                                    child: TextButton.icon(
+                                      onPressed: () => onComment(post, product),
+                                      icon: const Icon(
+                                        Icons.mode_comment_outlined,
+                                        color: StyleColor.muted,
+                                        size: StyleColor.iconSize,
+                                      ),
+                                      label: Text('postCard.comment'.tr()),
                                     ),
-                                    label: const Text('Comment'),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -269,24 +327,24 @@ class MarketplacePostCard extends StatelessWidget {
       !products.any((product) => product.title == post.content?.trim());
 
   String _dateLabel(DateTime? value) {
-    if (value == null) return 'Date unavailable';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+    if (value == null) return 'postCard.dateUnavailable'.tr();
+    const monthKeys = [
+      'postCard.month.jan',
+      'postCard.month.feb',
+      'postCard.month.mar',
+      'postCard.month.apr',
+      'postCard.month.may',
+      'postCard.month.jun',
+      'postCard.month.jul',
+      'postCard.month.aug',
+      'postCard.month.sep',
+      'postCard.month.oct',
+      'postCard.month.nov',
+      'postCard.month.dec',
     ];
     final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
     final minute = value.minute.toString().padLeft(2, '0');
-    final period = value.hour < 12 ? 'AM' : 'PM';
-    return '${months[value.month - 1]} ${value.day}, ${value.year} · $hour:$minute $period';
+    final period = value.hour < 12 ? 'common.am'.tr() : 'common.pm'.tr();
+    return '${monthKeys[value.month - 1].tr()} ${value.day}, ${value.year} · $hour:$minute $period';
   }
 }

@@ -1,177 +1,131 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'package:provider/provider.dart';
 
 import '../core/app_theme.dart';
-import 'bottom_navigation_visibility.dart';
+import '../core/components/localized_builder.dart';
+import '../core/singleton.dart';
 
 const _destinations = <_AppNavigationDestination>[
   _AppNavigationDestination(
     icon: Icons.home_outlined,
     selectedIcon: Icons.home_rounded,
-    label: 'Home',
+    label: 'nav.home',
     location: '/',
   ),
   _AppNavigationDestination(
     icon: Icons.favorite_border_rounded,
     selectedIcon: Icons.favorite_rounded,
-    label: 'Favorite',
+    label: 'nav.favorite',
     location: '/saved',
   ),
   _AppNavigationDestination(
     icon: Icons.add_box_outlined,
     selectedIcon: Icons.add_box_rounded,
-    label: 'Create',
+    label: 'nav.create',
     location: '/sell',
   ),
   _AppNavigationDestination(
     icon: Icons.chat_bubble_outline_rounded,
     selectedIcon: Icons.chat_bubble_rounded,
-    label: 'Message',
+    label: 'nav.message',
     location: '/chats',
   ),
   _AppNavigationDestination(
     icon: Icons.person_outline_rounded,
     selectedIcon: Icons.person_rounded,
-    label: 'User',
+    label: 'nav.user',
     location: '/me',
   ),
 ];
 
-class AppShell extends StatefulWidget {
+class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child, required this.location});
 
   final Widget child;
   final String location;
 
   @override
-  State<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends State<AppShell> {
-  @override
   Widget build(BuildContext context) {
-    final location = widget.location;
-    final selectedIndex = switch (location) {
-      '/saved' => 1,
-      '/sell' => 2,
-      '/chats' => 3,
-      '/me' => 4,
-      _ when location.startsWith('/chats/') => 3,
-      _ => 0,
+    context.watchLocale();
+    final canSell = context.select<Singleton, bool>(
+      (state) => state.account?.canSell ?? true,
+    );
+    final destinations = canSell
+        ? _destinations
+        : _destinations.where((item) => item.location != '/sell').toList();
+    final location = this.location;
+    final selectedLocation = switch (location) {
+      '/saved' => '/saved',
+      '/sell' => '/sell',
+      '/chats' => '/chats',
+      '/me' => '/me',
+      _ when location.startsWith('/chats/') => '/chats',
+      _ => '/',
     };
+    final selectedIndex = destinations.indexWhere(
+      (destination) => destination.location == selectedLocation,
+    );
+    final safeSelectedIndex = selectedIndex < 0 ? 0 : selectedIndex;
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: bottomNavigationVisible,
-      builder: (context, showNavigation, _) {
-        final showBar =
-            showNavigation && MediaQuery.viewInsetsOf(context).bottom == 0;
-        // Let each page scaffold handle the status-bar inset; applying it
-        // around the whole scaffold shifts page content down a second time.
-        final pageBody = SafeArea(
-          top: false,
-          bottom: false,
-          child: widget.child,
-        );
+    final isConversation = location.startsWith('/chats/');
+    final isManagement =
+        location == '/management' || location.startsWith('/management/');
+    final isPayroll = location == '/payroll' || location == '/me/payslips';
+    final isReports = location == '/reports';
+    final isChangePassword = location == '/me/change-password';
+    // Derived only from the current location and the keyboard state so the bar
+    // can never get stuck hidden after a page is closed or replaced.
+    final showBar =
+        location != '/search' &&
+        !isConversation &&
+        !isManagement &&
+        !isPayroll &&
+        !isReports &&
+        !isChangePassword &&
+        MediaQuery.viewInsetsOf(context).bottom == 0;
+    // Let each page scaffold handle the status-bar inset; applying it
+    // around the whole scaffold shifts page content down a second time.
+    final pageBody = SafeArea(top: false, bottom: false, child: child);
 
-        if (PlatformInfo.isIOS26OrHigher()) {
-          return AdaptiveScaffold(
-            body: pageBody,
-            extendBody: true,
-            enableBlur: true,
-            minimizeBehavior: TabBarMinimizeBehavior.never,
-            bottomNavigationBar: showBar
-                ? AdaptiveBottomNavigationBar(
-                    items: const [
-                      AdaptiveNavigationDestination(
-                        icon: 'house',
-                        selectedIcon: 'house.fill',
-                        label: 'Home',
-                      ),
-                      AdaptiveNavigationDestination(
-                        icon: 'heart',
-                        selectedIcon: 'heart.fill',
-                        label: 'Favorite',
-                      ),
-                      AdaptiveNavigationDestination(
-                        icon: 'plus.square',
-                        selectedIcon: 'plus.square.fill',
-                        label: 'Create',
-                      ),
-                      AdaptiveNavigationDestination(
-                        icon: 'bubble.left',
-                        selectedIcon: 'bubble.left.fill',
-                        label: 'Message',
-                      ),
-                      AdaptiveNavigationDestination(
-                        icon: 'person.crop.circle',
-                        selectedIcon: 'person.crop.circle.fill',
-                        label: 'User',
-                      ),
-                    ],
-                    selectedIndex: selectedIndex,
-                    onTap: (index) => context.go(_destinations[index].location),
-                    useNativeBottomBar: true,
-                    selectedItemColor: const Color(0xFF2563EB),
-                    unselectedItemColor: const Color(0xFF25282B),
-                  )
-                : null,
-          );
-        }
-
-        return Scaffold(
-          extendBody: false,
-          body: ClipRect(child: pageBody),
-          bottomNavigationBar: showBar
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                  child: SafeArea(
-                    top: false,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(40),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.8),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 20,
-                            offset: const Offset(0, 7),
+    return Scaffold(
+      extendBody: false,
+      body: ClipRect(child: pageBody),
+      backgroundColor: Colors.white,
+      bottomNavigationBar: showBar
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: SafeArea(
+                top: false,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(40),
+                  clipBehavior: Clip.antiAlias,
+                  child: SizedBox(
+                    height: 64,
+                    child: Row(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < destinations.length;
+                          index++
+                        )
+                          Expanded(
+                            child: _BottomNavigationItem(
+                              destination: destinations[index],
+                              selected: safeSelectedIndex == index,
+                              onTap: () =>
+                                  context.go(destinations[index].location),
+                            ),
                           ),
-                        ],
-                      ),
-                      child: AdaptiveBlurView(
-                        blurStyle: BlurStyle.systemThinMaterial,
-                        borderRadius: BorderRadius.circular(40),
-                        child: SizedBox(
-                          height: 64,
-                          child: Row(
-                            children: [
-                              for (
-                                var index = 0;
-                                index < _destinations.length;
-                                index++
-                              )
-                                Expanded(
-                                  child: _BottomNavigationItem(
-                                    destination: _destinations[index],
-                                    selected: selectedIndex == index,
-                                    onTap: () => context.go(
-                                      _destinations[index].location,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
                   ),
-                )
-              : null,
-        );
-      },
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -209,7 +163,7 @@ class _BottomNavigationItem extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: destination.label,
+      label: destination.label.tr(),
       child: InkWell(
         onTap: onTap,
         child: SizedBox.expand(
@@ -246,7 +200,7 @@ class _BottomNavigationItem extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          destination.label,
+                          destination.label.tr(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

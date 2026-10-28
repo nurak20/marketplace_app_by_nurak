@@ -1,18 +1,17 @@
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import '../app_theme.dart';
+import '../notification_hub.dart';
+import '../singleton.dart';
 
-/// App-wide adaptive app-bar configuration for [AdaptiveScaffold].
+/// Shared Material app bar used by every screen.
 ///
-/// Layout (iOS 26+ Liquid Glass, like the package template):
-///
-///   [ logo ]            Title            [ bell ]  [ profile ]
-///    left capsule     centered title     separate right capsules
+/// Layout: [ logo ]  Title  [ actions ] [ bell ] [ management ] [ profile ]
 ///
 /// ```dart
-/// AdaptiveScaffold(
+/// Scaffold(
 ///   appBar: const MarketplaceAppBar(title: 'Home').build(context),
 ///   body: ...,
 /// )
@@ -23,57 +22,62 @@ class MarketplaceAppBar {
     this.actions = const [],
     this.titleContent,
     this.showNotifications = true,
+    this.showManagement = true,
     this.showProfileAvatar = true,
   });
 
   final String title;
-  final List<AdaptiveAppBarAction> actions;
+  final List<Widget> actions;
   final Widget? titleContent;
   final bool showNotifications;
+  final bool showManagement;
   final bool showProfileAvatar;
 
-  AdaptiveAppBar build(BuildContext context) => AdaptiveAppBar(
-    useNativeToolbar: true,
-    title: title.isEmpty ? null : title,
-    titleWidget: titleContent,
-    tintColor: StyleColor.ink,
+  AppBar build(BuildContext context) => AppBar(
+    titleSpacing: 0,
+    leadingWidth: 56,
+    leading: IconButton(
+      tooltip: 'nav.home'.tr(),
+      onPressed: () => context.go('/'),
+      icon: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.asset(
+          'lib/assets/logo/mk27_app_logo.png',
+          width: 26,
+          height: 26,
+          fit: BoxFit.cover,
+        ),
+      ),
+    ),
+    title: titleContent ?? (title.isEmpty ? null : Text(title)),
     actions: [
-      // Left capsule: logo -> Home. The flexible spacer pushes everything
-      // after it to the right, so the title sits in the middle.
-      AdaptiveAppBarAction(
-        iconWidget: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Image.asset(
-            'lib/assets/logo/mk27_app_logo.png',
-            width: 26,
-            height: 26,
-            fit: BoxFit.cover,
+      ...actions,
+      if (showNotifications)
+        Consumer<NotificationHub>(
+          builder: (context, hub, _) => IconButton(
+            tooltip: 'profile.notifications'.tr(),
+            onPressed: () => context.push('/notifications'),
+            icon: Badge(
+              isLabelVisible: hub.unreadCount > 0,
+              label: Text(hub.unreadCount > 99 ? '99+' : '${hub.unreadCount}'),
+              child: const Icon(Icons.notifications_none_rounded),
+            ),
           ),
         ),
-        iosSymbol: 'house', // fallback symbol
-        icon: Icons.home_outlined,
-        label: 'Home',
-        onPressed: () => context.go('/'),
-        spacerAfter: ToolbarSpacerType.flexible,
-      ),
-
-      // Right side: each action in its own capsule (fixed gap between them).
-      ...actions,
-      // if (showNotifications)
-      //   AdaptiveAppBarAction(
-      //     iosSymbol: 'bell',
-      //     icon: Icons.notifications_none_rounded,
-      //     label: 'Notifications',
-      //     onPressed: () => context.push('/notifications'),
-      //     spacerAfter: showProfileAvatar ? ToolbarSpacerType.fixed : null,
-      //   ),
-      if (showProfileAvatar)
-        AdaptiveAppBarAction(
-          iosSymbol: 'person.crop.circle',
-          icon: Icons.account_circle_outlined,
-          label: 'Profile',
-          onPressed: () => context.go('/me'),
+      if (showManagement &&
+          Singleton.instance.account?.canAccessManagement == true)
+        IconButton(
+          tooltip: 'profile.management'.tr(),
+          onPressed: () => context.go('/management'),
+          icon: const Icon(Icons.manage_accounts_outlined),
         ),
+      if (showProfileAvatar)
+        IconButton(
+          tooltip: 'profile.title'.tr(),
+          onPressed: () => context.go('/me'),
+          icon: const Icon(Icons.account_circle_outlined),
+        ),
+      const SizedBox(width: 4),
     ],
   );
 }

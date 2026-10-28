@@ -1,10 +1,13 @@
-import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
+import '../../core/components/language_button.dart';
+import '../../core/components/localized_builder.dart';
 import '../../core/components/marketplace_app_bar.dart';
+import '../../core/components/mk_text_form_field.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
 import '../../core/session_store.dart';
@@ -56,82 +59,90 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _BrandMark(),
-                  const SizedBox(height: 34),
-                  Text(
-                    'Welcome back',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w400,
+  Widget build(BuildContext context) => LocalizedBuilder(
+    builder: (context) => Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        _BrandMark(),
+                        Spacer(),
+                        LanguageButton(compact: true),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Find good things nearby, or list something you no longer need.',
-                    style: TextStyle(color: StyleColor.muted),
-                  ),
-                  const SizedBox(height: 28),
-                  TextFormField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.mail_outline),
+                    const SizedBox(height: 34),
+                    Text(
+                      'auth.welcomeBack'.tr(),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w400),
                     ),
-                    validator: (value) => value == null || !value.contains('@')
-                        ? 'Enter a valid email address'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: _obscure,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.password],
-                    onFieldSubmitted: (_) => _login(),
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                        icon: Icon(
-                          _obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                    const SizedBox(height: 8),
+                    Text(
+                      'auth.loginSubtitle'.tr(),
+                      style: const TextStyle(color: StyleColor.muted),
+                    ),
+                    const SizedBox(height: 28),
+                    MKTextFormField(
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: InputDecoration(
+                        labelText: 'auth.email'.tr(),
+                        prefixIcon: const Icon(Icons.mail_outline),
+                      ),
+                      validator: (value) =>
+                          value == null || !value.contains('@')
+                          ? 'auth.emailInvalid'.tr()
+                          : null,
+                    ),
+                    const SizedBox(height: 14),
+                    MKTextFormField(
+                      controller: _password,
+                      obscureText: _obscure,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onFieldSubmitted: (_) => _login(),
+                      decoration: InputDecoration(
+                        labelText: 'auth.password'.tr(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
                         ),
                       ),
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'auth.passwordRequired'.tr()
+                          : null,
                     ),
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Enter your password'
-                        : null,
-                  ),
-                  const SizedBox(height: 20),
-                  PrimaryButton(
-                    label: 'Log in',
-                    busy: _busy,
-                    onPressed: _login,
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => context.go('/register'),
-                      child: const Text('New to Nurak MK27?  Create account'),
+                    const SizedBox(height: 20),
+                    PrimaryButton(
+                      label: 'auth.login'.tr(),
+                      busy: _busy,
+                      onPressed: _login,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.go('/register'),
+                        child: Text('auth.createAccountPrompt'.tr()),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -185,79 +196,85 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => AdaptiveScaffold(
-    appBar: const MarketplaceAppBar(
-      title: 'Create account',
-      showNotifications: false,
-      showProfileAvatar: false,
-    ).build(context),
-    body: SafeArea(
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          children: [
-            const _BrandMark(),
-            const SizedBox(height: 22),
-            const Text(
-              'Join your neighborhood marketplace.',
-              style: TextStyle(color: StyleColor.muted),
-            ),
-            const SizedBox(height: 22),
-            TextFormField(
-              controller: _name,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Full name'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter your name'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _username,
-              decoration: const InputDecoration(labelText: 'Username'),
-              validator: (value) => value == null || value.trim().length < 3
-                  ? 'Use at least 3 characters'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
-              validator: (value) => value == null || !value.contains('@')
-                  ? 'Enter a valid email address'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _password,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
-              validator: (value) => value == null || value.length < 8
-                  ? 'Use at least 8 characters'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _confirm,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirm password'),
-              validator: (value) =>
-                  value != _password.text ? 'Passwords do not match' : null,
-            ),
-            const SizedBox(height: 24),
-            PrimaryButton(
-              label: 'Create account',
-              busy: _busy,
-              onPressed: _register,
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => context.go('/login'),
-              child: const Text('I already have an account'),
-            ),
-          ],
+  Widget build(BuildContext context) => LocalizedBuilder(
+    builder: (context) => Scaffold(
+      appBar: MarketplaceAppBar(
+        title: 'auth.createAccount'.tr(),
+        showNotifications: false,
+        showProfileAvatar: false,
+        actions: const [LanguageButton(compact: true)],
+      ).build(context),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            children: [
+              const _BrandMark(),
+              const SizedBox(height: 22),
+              Text(
+                'auth.joinSubtitle'.tr(),
+                style: const TextStyle(color: StyleColor.muted),
+              ),
+              const SizedBox(height: 22),
+              MKTextFormField(
+                controller: _name,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(labelText: 'auth.fullName'.tr()),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'auth.nameRequired'.tr()
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              MKTextFormField(
+                controller: _username,
+                decoration: InputDecoration(labelText: 'auth.username'.tr()),
+                validator: (value) => value == null || value.trim().length < 3
+                    ? 'auth.usernameTooShort'.tr()
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              MKTextFormField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(labelText: 'auth.email'.tr()),
+                validator: (value) => value == null || !value.contains('@')
+                    ? 'auth.emailInvalid'.tr()
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              MKTextFormField(
+                controller: _password,
+                obscureText: true,
+                decoration: InputDecoration(labelText: 'auth.password'.tr()),
+                validator: (value) => value == null || value.length < 8
+                    ? 'auth.passwordTooShort'.tr()
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              MKTextFormField(
+                controller: _confirm,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'auth.confirmPassword'.tr(),
+                ),
+                validator: (value) => value != _password.text
+                    ? 'auth.passwordMismatch'.tr()
+                    : null,
+              ),
+              const SizedBox(height: 24),
+              PrimaryButton(
+                label: 'auth.createAccount'.tr(),
+                busy: _busy,
+                onPressed: _register,
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => context.go('/login'),
+                child: Text('auth.alreadyHaveAccount'.tr()),
+              ),
+            ],
+          ),
         ),
       ),
     ),

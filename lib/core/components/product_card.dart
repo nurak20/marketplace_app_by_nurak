@@ -1,6 +1,8 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
+import '../l10n_labels.dart';
 import '../models.dart';
 import 'product_artwork.dart';
 
@@ -39,7 +41,9 @@ class ProductCard extends StatelessWidget {
                   right: 10,
                   child: IconButton.filledTonal(
                     onPressed: onSave,
-                    tooltip: isSaved ? 'Remove from saved' : 'Save item',
+                    tooltip: isSaved
+                        ? 'postCard.removeSaved'.tr()
+                        : 'postCard.saveItem'.tr(),
                     icon: Icon(
                       isSaved ? Icons.favorite : Icons.favorite_border,
                     ),
@@ -90,7 +94,14 @@ class ProductCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${product.location ?? 'Cambodia'}  ·  ${product.condition.replaceAll('_', ' ')}',
+                  'productCard.meta'.tr(
+                    namedArgs: {
+                      'location':
+                          product.location ??
+                          'productCard.defaultLocation'.tr(),
+                      'condition': conditionLabel(product.condition),
+                    },
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

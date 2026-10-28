@@ -45,7 +45,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  adaptive_platform_ui: ^1.0.2
+  syncfusion_flutter_datagrid: ^35.1.41
+  syncfusion_flutter_charts: ^35.1.41
+  syncfusion_flutter_core: ^35.1.41
+  easy_localization: ^3.0.8
+  web_socket_channel: ^3.0.3
 
 flutter_launcher_icons:
   android: true
@@ -80,6 +84,11 @@ flutter:
     - .env
     - lib/assets/logo/mk27_app_logo.png
     - lib/assets/lotties/loading.json
+    - lib/assets/translations/
+  fonts:
+    - family: KSR
+      fonts:
+        - asset: lib/assets/fonts/ksr.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
