@@ -83,76 +83,62 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   @override
   Widget build(BuildContext context) => LocalizedBuilder(
-    builder: (context) => Scaffold(
-      appBar: MarketplaceAppBar(title: 'chat.title'.tr()).build(context),
-
-      body: Column(
-        children: [
-          Expanded(
-            child: FutureBuilder<List<_ChatThread>>(
-              future: _inbox,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox.shrink();
-                }
-                if (snapshot.hasError) {
-                  return _ErrorRetry(
-                    error: snapshot.error!,
-                    onRetry: () => setState(() {
-                      _load();
-                    }),
-                  );
-                }
-                final threads = snapshot.data!;
-                if (threads.isEmpty) {
-                  return EmptyState(
-                    title: 'chat.emptyTitle'.tr(),
-                    message: 'chat.emptyMessage'.tr(),
-                    icon: Icons.chat_bubble_outline_rounded,
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: threads.length + 1,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    if (index == threads.length) {
-                      return const SizedBox(
-                        height: StyleSpacing.bottomContentClearance,
+    builder: (context) => Column(
+      children: [
+        FutureBuilder<List<_ChatThread>>(
+          future: _inbox,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox.shrink();
+            }
+            if (snapshot.hasError) {
+              return _ErrorRetry(
+                error: snapshot.error!,
+                onRetry: () => setState(() {
+                  _load();
+                }),
+              );
+            }
+            final threads = snapshot.data!;
+            if (threads.isEmpty) {
+              return EmptyState(
+                title: 'chat.emptyTitle'.tr(),
+                message: 'chat.emptyMessage'.tr(),
+                icon: Icons.chat_bubble_outline_rounded,
+              );
+            }
+            return Column(
+              children: [
+                ...threads.map((thread) {
+                  final profile = thread.contact;
+                  return ListTile(
+                    leading: UserAvatar(profile: profile),
+                    title: Text(
+                      profile?.displayName ??
+                          'chat.memberFallback'.tr(
+                            namedArgs: {'id': '${thread.userId}'},
+                          ),
+                      style: const TextStyle(fontWeight: FontWeight.w400),
+                    ),
+                    subtitle: Text(
+                      thread.message.content,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      context.pushNamed(
+                        'conversation',
+                        pathParameters: {'userId': '${thread.userId}'},
                       );
-                    }
-                    final thread = threads[index];
-                    final profile = thread.contact;
-                    return Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        leading: UserAvatar(profile: profile),
-                        title: Text(
-                          profile?.displayName ??
-                              'chat.memberFallback'.tr(
-                                namedArgs: {'id': '${thread.userId}'},
-                              ),
-                          style: const TextStyle(fontWeight: FontWeight.w400),
-                        ),
-                        subtitle: Text(
-                          thread.message.content,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.push('/chats/${thread.userId}'),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+                    },
+                  );
+                }),
+              ],
+            );
+          },
+        ),
+      ],
     ),
   );
 }

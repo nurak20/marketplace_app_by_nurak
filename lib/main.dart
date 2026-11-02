@@ -1,3 +1,4 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -85,92 +86,90 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
         ),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
-      ShellRoute(
-        builder: (_, state, child) =>
-            AppShell(location: state.uri.path, child: child),
-        routes: [
-          GoRoute(
-            path: '/',
-            pageBuilder: (_, state) => _fadeTabPage(state, const HomeScreen()),
-          ),
-          GoRoute(
-            path: '/saved',
-            pageBuilder: (_, state) => _fadeTabPage(state, const SavedScreen()),
-          ),
-          GoRoute(
-            path: '/sell',
-            pageBuilder: (_, state) => _fadeTabPage(state, const SellScreen()),
-          ),
-          GoRoute(
-            path: '/chats',
-            pageBuilder: (_, state) => _fadeTabPage(state, const ChatsScreen()),
-          ),
-          GoRoute(
-            path: '/chats/:userId',
-            builder: (_, state) => ConversationScreen(
-              userId: int.parse(state.pathParameters['userId']!),
-              productId: int.tryParse(
-                state.uri.queryParameters['productId'] ?? '',
-              ),
+      GoRoute(
+        path: '/',
+        pageBuilder: (_, state) => _fadeTabPage(state, const HomeScreen()),
+      ),
+      GoRoute(
+        name: 'saved',
+        path: '/saved',
+        pageBuilder: (_, state) => _fadeTabPage(state, const SavedScreen()),
+      ),
+      GoRoute(
+        path: '/sell',
+        name: 'create-new',
+        pageBuilder: (_, state) => _fadeTabPage(state, const SellScreen()),
+      ),
+      GoRoute(
+        path: '/chats',
+        name: 'chats',
+        pageBuilder: (_, state) => _fadeTabPage(state, const ChatsScreen()),
+      ),
+      GoRoute(
+        path: '/chats/:userId',
+        name: 'conversation',
+        builder: (_, state) {
+          final userId = int.tryParse(state.pathParameters['userId'] ?? '');
+          if (userId == null) {
+            return const Scaffold(body: Center(child: Text('Invalid chat')));
+          }
+          return ConversationScreen(
+            userId: userId,
+            productId: int.tryParse(
+              state.uri.queryParameters['productId'] ?? '',
             ),
-          ),
-          GoRoute(
-            path: '/me',
-            pageBuilder: (_, state) =>
-                _fadeTabPage(state, const ProfileScreen()),
-          ),
-          GoRoute(
-            path: '/me/payslips',
-            builder: (_, _) => const MyPayslipsScreen(),
-          ),
-          GoRoute(
-            path: '/me/change-password',
-            builder: (_, _) => const ChangePasswordScreen(),
-          ),
-          GoRoute(path: '/payroll', builder: (_, _) => const PayrollScreen()),
-          GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
-          GoRoute(
-            path: '/management',
-            builder: (_, _) => const ManagementScreen(),
-          ),
-          GoRoute(
-            path: '/search',
-            pageBuilder: (_, state) => MaterialPage<void>(
-              key: state.pageKey,
-              fullscreenDialog: true,
-              child: const ProductSearchScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/products/:id',
-            builder: (_, state) => ProductDetailScreen(
-              productId: int.parse(state.pathParameters['id']!),
-              postId: int.tryParse(state.uri.queryParameters['postId'] ?? ''),
-            ),
-          ),
-          GoRoute(
-            path: '/posts/:postId/products/:productId/comments',
-            builder: (_, state) => ProductCommentsScreen(
-              postId: int.parse(state.pathParameters['postId']!),
-              productId: int.parse(state.pathParameters['productId']!),
-            ),
-          ),
-          GoRoute(
-            path: '/products/:id/reviews',
-            builder: (_, state) => ProductReviewsScreen(
-              productId: int.parse(state.pathParameters['id']!),
-            ),
-          ),
-          GoRoute(
-            path: '/notifications',
-            builder: (_, _) => const NotificationsScreen(),
-          ),
-          GoRoute(
-            path: '/reviews/:id',
-            builder: (_, state) =>
-                ReviewScreen(productId: int.parse(state.pathParameters['id']!)),
-          ),
-        ],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/me',
+        name: 'profile',
+        pageBuilder: (_, state) => _fadeTabPage(state, const ProfileScreen()),
+      ),
+      GoRoute(
+        path: '/me/payslips',
+        builder: (_, _) => const MyPayslipsScreen(),
+      ),
+      GoRoute(
+        path: '/me/change-password',
+        builder: (_, _) => const ChangePasswordScreen(),
+      ),
+      GoRoute(path: '/payroll', builder: (_, _) => const PayrollScreen()),
+      GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
+      GoRoute(path: '/management', builder: (_, _) => const ManagementScreen()),
+      GoRoute(
+        path: '/search',
+        name: 'search',
+        builder: (_, _) => ProductSearchScreen(),
+      ),
+      GoRoute(
+        path: '/products/:id',
+        builder: (_, state) => ProductDetailScreen(
+          productId: int.parse(state.pathParameters['id']!),
+          postId: int.tryParse(state.uri.queryParameters['postId'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: '/posts/:postId/products/:productId/comments',
+        builder: (_, state) => ProductCommentsScreen(
+          postId: int.parse(state.pathParameters['postId']!),
+          productId: int.parse(state.pathParameters['productId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/products/:id/reviews',
+        builder: (_, state) => ProductReviewsScreen(
+          productId: int.parse(state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (_, _) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/reviews/:id',
+        builder: (_, state) =>
+            ReviewScreen(productId: int.parse(state.pathParameters['id']!)),
       ),
     ],
   );
@@ -202,11 +201,11 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
   @override
   Widget build(BuildContext context) {
     final localization = EasyLocalization.of(context)!;
-    return MaterialApp.router(
+    return AdaptiveApp.router(
       title: 'Nurak MK27',
       themeMode: ThemeMode.system,
-      theme: buildAppTheme(),
-      darkTheme: buildAppTheme(),
+      materialLightTheme: buildAppTheme(),
+
       // Keep large accessibility text from breaking fixed-height rows and chips.
       builder: (context, child) => MediaQuery.withClampedTextScaling(
         maxScaleFactor: 1.3,

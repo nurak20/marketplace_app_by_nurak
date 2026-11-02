@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:marketplace_mobile/features/chats/chat_screens.dart';
+import 'package:marketplace_mobile/features/marketplace/sell_screen.dart';
 
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
@@ -146,10 +149,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openSearch() {
-    context.push<void>('/search');
-  }
-
   List<MarketplacePost> _filterPosts(List<MarketplacePost> posts) {
     return posts
         .map((post) {
@@ -214,105 +213,161 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget buildProductList() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0),
+          child: SizedBox(
+            height: 68,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _categoryItems.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) =>
+                  _categoryTile(_categoryItems[index]),
+            ),
+          ),
+        ),
+
+        FutureBuilder<ApiPage<MarketplacePost>>(
+          future: _posts,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox.shrink();
+            }
+            if (snapshot.hasError) {
+              return ErrorRetryPanel(error: snapshot.error!, onRetry: _refresh);
+            }
+            final posts = _filterPosts(snapshot.data?.items ?? const []);
+            if (posts.isEmpty) {
+              return SizedBox(
+                height: 260,
+                child: EmptyState(
+                  title: 'home.noListingsTitle'.tr(),
+                  message: 'home.noListingsMessage'.tr(),
+                  icon: Icons.storefront_outlined,
+                ),
+              );
+            }
+            return Column(
+              children: [
+                const SizedBox(height: 8),
+                ...posts.map(
+                  (e) => MarketplacePostCard(
+                    key: ValueKey(e.id),
+                    post: e,
+                    isLiked: (post, product) =>
+                        _likedOverrides[(post.id, product.id)] ??
+                        post.engagementFor(product).hasReacted,
+                    likeCount: (post, product) =>
+                        _likeCountOverrides[(post.id, product.id)] ??
+                        post.engagementFor(product).reactionCount,
+                    isLiking: (post, product) =>
+                        _likingIds.contains((post.id, product.id)),
+                    onLike: _toggleLike,
+                    onComment: _openComments,
+                    isSaved: (product) =>
+                        _savedOverrides[product.id] ?? product.isSaved,
+                    onSave: _toggleSaved,
+                    onProductTap: _openProduct,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  String get _title => switch (_selectedIndex) {
+    0 => 'mk27 Management System',
+    1 => 'nav.message'.tr(),
+    2 => 'nav.create'.tr(),
+    _ => 'nav.user'.tr(),
+  };
+
+  int _selectedIndex = 0;
   @override
-  Widget build(BuildContext context) => LocalizedBuilder(
-    builder: (context) => Scaffold(
-      appBar: MarketplaceAppBar(
-        title: 'Nurak MK27',
-        actions: [
-          IconButton(
-            tooltip: 'common.search'.tr(),
-            onPressed: _openSearch,
-            icon: const Icon(Icons.search_rounded),
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: AdaptiveAppBar(
+      title: _title,
+      actions: [
+        AdaptiveAppBarAction(
+          onPressed: () async {
+            await context.pushNamed('notifications');
+          },
+          iosSymbol: 'bell', // SF Symbol, used on iOS 26+
+          icon: Icons.notifications_outlined, // fallback
+        ),
+        AdaptiveAppBarAction(
+          onPressed: () async {
+            await context.pushNamed('search');
+          },
+          iosSymbol: 'magnifyingglass', // SF Symbol name, used on iOS 26+
+          icon: Icons.search, // used on older iOS / fallback
+          // androidIcon: Icons.search,         // used on Android (if your version has it)
+        ),
+      ],
+    ),
+    body: Material(
+      color: Colors.white,
+      child: ListView(
+        children: [
+          SizedBox(
+            child: Column(
+              children: [
+                switch (_selectedIndex) {
+                  0 => buildProductList(),
+                  1 => const ChatsScreen(),
+                  _ => const SellScreen(),
+                },
+              ],
+            ),
           ),
         ],
-      ).build(context),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.all(10),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 68,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _categoryItems.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, index) =>
-                            _categoryTile(_categoryItems[index]),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                  ],
-                ),
-              ),
-            ),
-
-            FutureBuilder<ApiPage<MarketplacePost>>(
-              future: _posts,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SliverToBoxAdapter(child: SizedBox.shrink());
-                }
-                if (snapshot.hasError) {
-                  return SliverToBoxAdapter(
-                    child: ErrorRetryPanel(
-                      error: snapshot.error!,
-                      onRetry: _refresh,
-                    ),
-                  );
-                }
-                final posts = _filterPosts(snapshot.data?.items ?? const []);
-                if (posts.isEmpty) {
-                  return SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 260,
-                      child: EmptyState(
-                        title: 'home.noListingsTitle'.tr(),
-                        message: 'home.noListingsMessage'.tr(),
-                        icon: Icons.storefront_outlined,
-                      ),
-                    ),
-                  );
-                }
-                return SliverList.separated(
-                  itemCount: posts.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 5),
-                  itemBuilder: (context, index) {
-                    final post = posts[index];
-                    return MarketplacePostCard(
-                      key: ValueKey(post.id),
-                      post: post,
-                      isLiked: (post, product) =>
-                          _likedOverrides[(post.id, product.id)] ??
-                          post.engagementFor(product).hasReacted,
-                      likeCount: (post, product) =>
-                          _likeCountOverrides[(post.id, product.id)] ??
-                          post.engagementFor(product).reactionCount,
-                      isLiking: (post, product) =>
-                          _likingIds.contains((post.id, product.id)),
-                      onLike: _toggleLike,
-                      onComment: _openComments,
-                      isSaved: (product) =>
-                          _savedOverrides[product.id] ?? product.isSaved,
-                      onSave: _toggleSaved,
-                      onProductTap: _openProduct,
-                    );
-                  },
-                );
-              },
-            ),
-            const SliverToBoxAdapter(
-              child: SizedBox(height: StyleSpacing.bottomContentClearance),
-            ),
-          ],
-        ),
       ),
+    ),
+    bottomNavigationBar: AdaptiveBottomNavigationBar(
+      useNativeBottomBar: true,
+
+      selectedIndex: _selectedIndex,
+      onTap: (index) {
+        if (index == 3) {
+          context.pushNamed('profile');
+        } else if (mounted) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        }
+      },
+      items: [
+        AdaptiveNavigationDestination(
+          icon: PlatformInfo.isIOS26OrHigher()
+              ? 'house.fill'
+              : Icons.home_rounded,
+          label: 'nav.home'.tr(),
+        ),
+        AdaptiveNavigationDestination(
+          icon: PlatformInfo.isIOS26OrHigher()
+              ? 'bubble.left.fill'
+              : Icons.chat_bubble_rounded,
+          label: 'nav.message'.tr(),
+        ),
+        AdaptiveNavigationDestination(
+          icon: PlatformInfo.isIOS26OrHigher()
+              ? 'plus.app.fill'
+              : Icons.add_box_rounded,
+          label: 'nav.create'.tr(),
+        ),
+        AdaptiveNavigationDestination(
+          icon: PlatformInfo.isIOS26OrHigher()
+              ? 'person.fill'
+              : Icons.person_rounded,
+          label: 'nav.user'.tr(),
+        ),
+      ],
     ),
   );
 }

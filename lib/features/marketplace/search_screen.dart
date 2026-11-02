@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -30,9 +31,21 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   @override
   void initState() {
     super.initState();
+    initData();
+  }
+
+  bool Loading = true;
+  Future<void> initData() async {
+    await Future.delayed(Duration(milliseconds: 400), () {});
     final request = api.products(status: 'AVAILABLE');
     _results = request;
     unawaited(_refreshCategoryItems(request));
+    if (mounted) {
+      Loading = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   List<MarketplaceCategory> get _categoryItems {
@@ -201,39 +214,43 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => LocalizedBuilder(
-    builder: (context) => Scaffold(
-      appBar: AppBar(title: Text('search.title'.tr())),
-      body: Material(
-        type: MaterialType.transparency,
-        child: ListView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          children: [
-            MKTextFormField(
-              controller: _controller,
-              autofocus: true,
-              textInputAction: TextInputAction.search,
-              onChanged: _scheduleSearch,
-              onFieldSubmitted: (_) => _search(),
-              decoration: InputDecoration(
-                hintText: 'search.hint'.tr(),
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        onPressed: _clearSearch,
-                        tooltip: 'search.clear'.tr(),
-                        icon: const Icon(Icons.close_rounded),
+  Widget build(BuildContext context) => AdaptiveScaffold(
+    appBar: AdaptiveAppBar(title: 'search.title'.tr()),
+    body: Material(
+      child: ListView(
+        children: [
+          Loading
+              ? const SizedBox()
+              : Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    children: [
+                      MKTextFormField(
+                        controller: _controller,
+
+                        textInputAction: TextInputAction.search,
+                        onChanged: _scheduleSearch,
+                        onFieldSubmitted: (_) => _search(),
+                        decoration: InputDecoration(
+                          hintText: 'search.hint'.tr(),
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: _controller.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: _clearSearch,
+                                  tooltip: 'search.clear'.tr(),
+                                  icon: const Icon(Icons.close_rounded),
+                                ),
+                        ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _filters(),
-            const SizedBox(height: 12),
-            _resultList(),
-          ],
-        ),
+                      const SizedBox(height: 12),
+                      _filters(),
+                      const SizedBox(height: 12),
+                      _resultList(),
+                    ],
+                  ),
+                ),
+        ],
       ),
     ),
   );

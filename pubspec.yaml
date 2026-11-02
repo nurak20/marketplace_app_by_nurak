@@ -50,6 +50,7 @@ dependencies:
   syncfusion_flutter_core: ^35.1.41
   easy_localization: ^3.0.8
   web_socket_channel: ^3.0.3
+  adaptive_platform_ui: ^1.0.2
 
 flutter_launcher_icons:
   android: true

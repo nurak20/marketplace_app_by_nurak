@@ -13,24 +13,24 @@ Widget _page(String label) => Scaffold(body: Center(child: Text(label)));
 GoRouter _router() => GoRouter(
   initialLocation: '/',
   routes: [
-    ShellRoute(
-      builder: (_, state, child) =>
-          AppShell(location: state.uri.path, child: child),
-      routes: [
-        GoRoute(path: '/', builder: (_, _) => _page('home')),
-        GoRoute(
-          path: '/search',
-          pageBuilder: (_, state) => MaterialPage<void>(
-            key: state.pageKey,
-            fullscreenDialog: true,
-            child: _page('search'),
-          ),
-        ),
-        GoRoute(path: '/management', builder: (_, _) => _page('management')),
-        GoRoute(path: '/payroll', builder: (_, _) => _page('payroll')),
-        GoRoute(path: '/reports', builder: (_, _) => _page('reports')),
-      ],
-    ),
+    // ShellRoute(
+    //   builder: (_, state, child) =>
+    //       AppShell(location: state.uri.path, child: child),
+    //   routes: [
+    //     GoRoute(path: '/', builder: (_, _) => _page('home')),
+    //     GoRoute(
+    //       path: '/search',
+    //       pageBuilder: (_, state) => MaterialPage<void>(
+    //         key: state.pageKey,
+    //         fullscreenDialog: true,
+    //         child: _page('search'),
+    //       ),
+    //     ),
+    //     GoRoute(path: '/management', builder: (_, _) => _page('management')),
+    //     GoRoute(path: '/payroll', builder: (_, _) => _page('payroll')),
+    //     GoRoute(path: '/reports', builder: (_, _) => _page('reports')),
+    //   ],
+    // ),
   ],
 );
 

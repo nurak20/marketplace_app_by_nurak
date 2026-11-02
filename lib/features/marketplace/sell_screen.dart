@@ -366,73 +366,55 @@ class _SellScreenState extends State<SellScreen> {
 
   @override
   Widget build(BuildContext context) => LocalizedBuilder(
-    builder: (context) => Scaffold(
-      appBar: MarketplaceAppBar(
-        title: 'sell.title'.tr(),
-        showNotifications: false,
-        showProfileAvatar: false,
-      ).build(context),
-      body: Theme(
-        data: _theme,
-        child: Material(
-          type: MaterialType.transparency,
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-              children: [
-                if (!_optionsLoading && _categories.isEmpty)
-                  _OptionsNotice(
-                    icon: Icons.category_outlined,
-                    message: 'sell.noCategoriesNotice'.tr(),
-                  ),
-                if (!_optionsLoading && _conditions.isEmpty)
-                  _OptionsNotice(
-                    icon: Icons.fact_check_outlined,
-                    message: 'sell.conditionsUnavailableNotice'.tr(),
-                  ),
-                AbsorbPointer(
-                  absorbing: _busy || _optionsLoading,
-                  child: Column(
-                    children: [
-                      MKTextFormField(
-                        controller: _caption,
-                        minLines: 1,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: 'sell.postMessageOptional'.tr(),
-                          hintText: 'sell.postMessageHint'.tr(),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      for (var i = 0; i < _products.length; i++) ...[
-                        _productEditor(_products[i], i),
-                        const SizedBox(height: 12),
-                      ],
-                      OutlinedButton.icon(
-                        onPressed: _addProduct,
-                        icon: const Icon(Icons.add_circle_outline_rounded),
-                        label: Text('sell.addAnotherProduct'.tr()),
-                      ),
-                    ],
-                  ),
+    builder: (context) => Column(
+      children: [
+        if (!_optionsLoading && _categories.isEmpty)
+          _OptionsNotice(
+            icon: Icons.category_outlined,
+            message: 'sell.noCategoriesNotice'.tr(),
+          ),
+        if (!_optionsLoading && _conditions.isEmpty)
+          _OptionsNotice(
+            icon: Icons.fact_check_outlined,
+            message: 'sell.conditionsUnavailableNotice'.tr(),
+          ),
+        AbsorbPointer(
+          absorbing: _busy || _optionsLoading,
+          child: Column(
+            children: [
+              MKTextFormField(
+                controller: _caption,
+                minLines: 1,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'sell.postMessageOptional'.tr(),
+                  hintText: 'sell.postMessageHint'.tr(),
                 ),
-                const SizedBox(height: 14),
-                PrimaryButton(
-                  label: _products.length == 1
-                      ? 'sell.publishOne'.tr()
-                      : 'sell.publishMany'.tr(
-                          namedArgs: {'count': '${_products.length}'},
-                        ),
-                  busy: _busy || _optionsLoading,
-                  onPressed: _publish,
-                ),
-                const SizedBox(height: StyleSpacing.bottomContentClearance),
+              ),
+              const SizedBox(height: 14),
+              for (var i = 0; i < _products.length; i++) ...[
+                _productEditor(_products[i], i),
+                const SizedBox(height: 12),
               ],
-            ),
+              OutlinedButton.icon(
+                onPressed: _addProduct,
+                icon: const Icon(Icons.add_circle_outline_rounded),
+                label: Text('sell.addAnotherProduct'.tr()),
+              ),
+            ],
           ),
         ),
-      ),
+        const SizedBox(height: 14),
+        PrimaryButton(
+          label: _products.length == 1
+              ? 'sell.publishOne'.tr()
+              : 'sell.publishMany'.tr(
+                  namedArgs: {'count': '${_products.length}'},
+                ),
+          busy: _busy || _optionsLoading,
+          onPressed: _publish,
+        ),
+      ],
     ),
   );
 }
