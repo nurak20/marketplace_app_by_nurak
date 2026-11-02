@@ -70,9 +70,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<(Account, List<MarketplacePost>)> _fetch() async {
     final account = await api.me();
-    final posts = await api.posts(userId: account.profile.id);
-    final ownPosts = posts.items
-        .where((post) => post.userId == account.profile.id)
+    final posts = await api.posts(userId: account.profile?.id);
+    final ownPosts = (posts.items ?? [])
+        .where((post) => post.userId == account.profile?.id)
         .toList();
     return (account, ownPosts);
   }
@@ -92,20 +92,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _toggleSaved(Product product) async {
     if (_savingId != null) return;
-    final wasSaved = _savedOverrides[product.id] ?? product.isSaved;
+    final wasSaved = _savedOverrides[product.id ?? 0] ?? product.isSaved;
     setState(() {
       _savingId = product.id;
-      _savedOverrides[product.id] = !wasSaved;
+      _savedOverrides[product.id ?? 0] = wasSaved ?? false;
     });
     try {
-      if (wasSaved) {
-        await api.removeSavedProduct(product.id);
+      if (wasSaved ?? false) {
+        await api.removeSavedProduct(product.id ?? 0);
       } else {
-        await api.saveProduct(product.id);
+        await api.saveProduct(product.id ?? 0);
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _savedOverrides[product.id] = wasSaved);
+        setState(() => _savedOverrides[product.id ?? 0] = wasSaved ?? false);
         showError(context, error);
       }
     } finally {
@@ -114,27 +114,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _toggleLike(MarketplacePost post, Product product) async {
-    final key = (post.id, product.id);
+    final key = (post.id ?? 0, product.id ?? 0);
     if (_likingIds.contains(key)) return;
     final engagement = post.engagementFor(product);
     final wasLiked = _likedOverrides[key] ?? engagement.hasReacted;
     final count = _likeCountOverrides[key] ?? engagement.reactionCount;
     setState(() {
       _likingIds.add(key);
-      _likedOverrides[key] = !wasLiked;
-      _likeCountOverrides[key] = count + (wasLiked ? -1 : 1);
+      _likedOverrides[key] = wasLiked ?? false;
+      _likeCountOverrides[key] = (count ?? 0) + (wasLiked ?? false ? -1 : 1);
     });
     try {
-      if (wasLiked) {
-        await api.unreactToPostProduct(post.id, product.id);
+      if (wasLiked ?? false) {
+        await api.unreactToPostProduct(post.id ?? 0, product.id ?? 0);
       } else {
-        await api.reactToPostProduct(post.id, product.id);
+        await api.reactToPostProduct(post.id ?? 0, product.id ?? 0);
       }
     } catch (error) {
       if (mounted) {
         setState(() {
-          _likedOverrides[key] = wasLiked;
-          _likeCountOverrides[key] = count;
+          _likedOverrides[key] = wasLiked ?? false;
+          _likeCountOverrides[key] = count ?? 0;
         });
         showError(context, error);
       }
@@ -144,12 +144,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openProduct(MarketplacePost post, Product product) async {
-    await context.push('/products/${product.id}?postId=${post.id}');
+    final productId = product.id;
+    if (productId == null) return;
+    final postId = post.id;
+    await context.push(
+      '/products/$productId${postId == null ? '' : '?postId=$postId'}',
+    );
     if (mounted) await _load(showLoading: false);
   }
 
   Future<void> _openComments(MarketplacePost post, Product product) async {
-    await context.push('/posts/${post.id}/products/${product.id}/comments');
+    final postId = post.id;
+    final productId = product.id;
+    if (postId == null || productId == null) return;
+    await context.push('/posts/$postId/products/$productId/comments');
     if (mounted) await _load(showLoading: false);
   }
 
@@ -193,9 +201,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _editProfile(Account account) async {
     final formKey = GlobalKey<FormState>();
     final firstName = TextEditingController(
-      text: account.profile.firstNameText,
+      text: account.profile?.firstNameText,
     );
-    final lastName = TextEditingController(text: account.profile.lastNameText);
+    final lastName = TextEditingController(text: account.profile?.lastNameText);
     final email = TextEditingController(text: account.email ?? '');
     final phone = TextEditingController(text: account.phone ?? '');
 
@@ -320,15 +328,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     final listings = _listings;
     final user = account.profile;
-    final position = _positionName(account.roles);
+    final position = _positionName(account.roles ?? ['']);
     final listingCount = listings.fold<int>(
       0,
-      (total, post) => total + post.products.length,
+      (total, post) => total + (post.products?.length ?? 0),
     );
-    final avatarUrl = user.avatar?.url;
-    final name = user.displayName;
+    final avatarUrl = user?.avatar?.url;
+    final name = user?.displayName;
     final initials = name
-        .trim()
+        ?.trim()
         .split(RegExp(r'\s+'))
         .take(2)
         .map((part) => part.isEmpty ? '' : part[0].toUpperCase())
@@ -359,16 +367,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       height: 76,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, _, _) =>
-                                          _AvatarInitials(initials),
+                                          _AvatarInitials(initials ?? ''),
                                     ),
                                   )
-                                : _AvatarInitials(initials),
+                                : _AvatarInitials(initials ?? ''),
                           ),
                           Positioned(
                             right: 0,
                             bottom: 0,
                             child: Material(
-                              color: StyleColor.ink,
+                              color: StyleColor.action,
                               shape: const CircleBorder(),
                               child: SizedBox(
                                 width: 32,
@@ -380,7 +388,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   icon: const Icon(
                                     Icons.camera_alt_outlined,
                                     size: StyleColor.iconSize,
-                                    color: Colors.white,
+                                    color: StyleColor.canvas,
                                   ),
                                 ),
                               ),
@@ -397,7 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                name,
+                                name ?? '',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -426,15 +434,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Text(
                         [
-                          if (user.location?.isNotEmpty == true) user.location!,
+                          if (user?.location?.isNotEmpty == true)
+                            user!.location!,
                           if (account.email?.isNotEmpty == true) account.email!,
                           if (account.phone?.isNotEmpty == true) account.phone!,
                         ].join('  ·  '),
                         style: const TextStyle(color: StyleColor.muted),
                       ),
-                      if (user.bio?.isNotEmpty == true) ...[
+                      if (user?.bio?.isNotEmpty == true) ...[
                         const SizedBox(height: 8),
-                        Text(user.bio!),
+                        Text(user!.bio!),
                       ],
                       const SizedBox(height: 14),
                       Align(
@@ -538,17 +547,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   key: ValueKey('profile-post-${post.id}'),
                   post: post,
                   isLiked: (post, product) =>
-                      _likedOverrides[(post.id, product.id)] ??
-                      post.engagementFor(product).hasReacted,
+                      _likedOverrides[(post.id ?? 0, product.id ?? 0)] ??
+                      post.engagementFor(product).hasReacted ??
+                      false,
                   likeCount: (post, product) =>
-                      _likeCountOverrides[(post.id, product.id)] ??
-                      post.engagementFor(product).reactionCount,
+                      _likeCountOverrides[(post.id ?? 0, product.id ?? 0)] ??
+                      post.engagementFor(product).reactionCount ??
+                      0,
                   isLiking: (post, product) =>
-                      _likingIds.contains((post.id, product.id)),
+                      _likingIds.contains((post.id ?? 0, product.id ?? 0)),
                   onLike: _toggleLike,
                   onComment: _openComments,
                   isSaved: (product) =>
-                      _savedOverrides[product.id] ?? product.isSaved,
+                      _savedOverrides[product.id ?? 0] ??
+                      product.isSaved ??
+                      false,
                   onSave: _toggleSaved,
                   onProductTap: _openProduct,
                 );

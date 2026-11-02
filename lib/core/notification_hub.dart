@@ -62,7 +62,9 @@ class NotificationHub extends ChangeNotifier {
       final count = await countFuture;
       _items
         ..clear()
-        ..addAll(page.items.take(_maxItems));
+        ..addAll(
+          (page.items ?? const <MarketplaceNotification>[]).take(_maxItems),
+        );
       _unreadCount = count;
       _error = null;
     } catch (error) {
@@ -76,7 +78,7 @@ class NotificationHub extends ChangeNotifier {
 
   Future<void> markRead(int id) async {
     final index = _items.indexWhere((item) => item.id == id);
-    if (index < 0 || _items[index].isRead) return;
+    if (index < 0 || _items[index].isRead == true) return;
     final previous = _items[index];
     _items[index] = previous.withRead(true);
     _unreadCount = _unreadCount > 0 ? _unreadCount - 1 : 0;
@@ -92,11 +94,13 @@ class NotificationHub extends ChangeNotifier {
   }
 
   Future<void> markAllRead() async {
-    if (_items.every((item) => item.isRead) && _unreadCount == 0) return;
+    if (_items.every((item) => item.isRead == true) && _unreadCount == 0) {
+      return;
+    }
     final snapshot = List<MarketplaceNotification>.of(_items);
     final previousCount = _unreadCount;
     for (var index = 0; index < _items.length; index++) {
-      if (!_items[index].isRead) {
+      if (_items[index].isRead != true) {
         _items[index] = _items[index].withRead(true);
       }
     }
@@ -256,7 +260,7 @@ class NotificationHub extends ChangeNotifier {
         notifyListeners();
       case 'notification.read-all':
         for (var index = 0; index < _items.length; index++) {
-          if (!_items[index].isRead) {
+          if (_items[index].isRead != true) {
             _items[index] = _items[index].withRead(true);
           }
         }
@@ -281,7 +285,7 @@ class NotificationHub extends ChangeNotifier {
 
   void _setRead(int id) {
     final index = _items.indexWhere((item) => item.id == id);
-    if (index >= 0 && !_items[index].isRead) {
+    if (index >= 0 && _items[index].isRead != true) {
       _items[index] = _items[index].withRead(true);
     }
   }

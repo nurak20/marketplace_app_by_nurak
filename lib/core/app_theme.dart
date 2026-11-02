@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 abstract final class StyleColor {
   static const double iconSize = 20;
-  static const ink = Color(0xFF12302E);
-  static const muted = Color(0xFF5C7471);
-  static const accent = Color(0xFFF0A020);
-  static const canvas = Color(0xFFE8EFED);
-  static const line = Color(0xFFDCE6E3);
-  static const success = Color(0xFF1F8A5B);
-  static const softMint = Color(0xFFCFE3DE);
-  static const sand = Color(0xFFF4DCAE);
-  static const teal = Color(0xFF2B6B62);
-  static const unreadSurface = Color(0xFFFFF8E9);
+  static const ink = Color(0xFFE5EEE9);
+  static const muted = Color(0xFF9AADA5);
+  static const accent = Color(0xFFFFBC55);
+  static const action = Color(0xFF91D3BC);
+  static const canvas = Color(0xFF101714);
+  static const surface = Color(0xFF19221E);
+  static const surfaceVariant = Color(0xFF222E28);
+  static const line = Color(0xFF35443D);
+  static const success = Color(0xFF72D6A1);
+  static const softMint = Color(0xFF29463B);
+  static const sand = Color(0xFF4B3B22);
+  static const teal = Color(0xFF78C8B0);
+  static const unreadSurface = Color(0xFF332B1C);
 }
 
 abstract final class StyleFont {
@@ -24,11 +27,6 @@ abstract final class StyleSpacing {
   static const bottomContentClearance = 150.0;
 }
 
-// Paste this into lib/core/app_theme.dart, replacing your current
-// buildAppTheme(). Keep your existing StyleColor, StyleFont and StyleSpacing
-// classes in that file, and make sure it imports:
-//   import 'package:flutter/material.dart';
-
 OutlineInputBorder _inputBorder(Color color, double width) =>
     OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
@@ -39,15 +37,21 @@ ThemeData buildAppTheme() {
   const noShadow = Colors.transparent;
 
   final scheme = ColorScheme.fromSeed(
-    seedColor: StyleColor.ink,
-    primary: StyleColor.ink,
+    brightness: Brightness.dark,
+    seedColor: StyleColor.action,
+    primary: StyleColor.action,
+    onPrimary: StyleColor.canvas,
     secondary: StyleColor.accent,
-    surface: Colors.white,
+    onSecondary: StyleColor.canvas,
+    surface: StyleColor.surface,
+    onSurface: StyleColor.ink,
+    outline: StyleColor.line,
     surfaceTint: noShadow, // removes the Material 3 tint on raised surfaces
   );
 
   return ThemeData(
     useMaterial3: true,
+    brightness: Brightness.dark,
     fontFamily: StyleFont.family,
     colorScheme: scheme,
     scaffoldBackgroundColor: StyleColor.canvas,
@@ -72,9 +76,9 @@ ThemeData buildAppTheme() {
       labelLarge: TextStyle(fontSize: StyleFont.mediumSize),
       labelMedium: TextStyle(fontSize: StyleFont.mediumSize),
       labelSmall: TextStyle(fontSize: StyleFont.mediumSize),
-    ),
+    ).apply(bodyColor: StyleColor.ink, displayColor: StyleColor.ink),
     appBarTheme: AppBarTheme(
-      backgroundColor: Colors.white.withValues(alpha: .7),
+      backgroundColor: StyleColor.surface.withValues(alpha: .96),
       foregroundColor: StyleColor.ink,
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -88,7 +92,7 @@ ThemeData buildAppTheme() {
       ),
     ),
     cardTheme: CardThemeData(
-      color: Colors.white,
+      color: StyleColor.surface,
       elevation: 0,
       shadowColor: noShadow,
       surfaceTintColor: noShadow,
@@ -97,22 +101,22 @@ ThemeData buildAppTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: StyleColor.surfaceVariant,
       floatingLabelBehavior: FloatingLabelBehavior.always,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: _inputBorder(StyleColor.line, 0.5),
       enabledBorder: _inputBorder(StyleColor.line, 0.5),
       disabledBorder: _inputBorder(StyleColor.line, 0.5),
-      focusedBorder: _inputBorder(StyleColor.ink, 1),
+      focusedBorder: _inputBorder(scheme.primary, 1),
       errorBorder: _inputBorder(scheme.error, 0.5),
       focusedErrorBorder: _inputBorder(scheme.error, 1),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: Colors.white,
+      backgroundColor: StyleColor.surface,
       elevation: 0,
       shadowColor: noShadow,
       surfaceTintColor: noShadow,
-      indicatorColor: StyleColor.accent.withValues(alpha: .25),
+      indicatorColor: StyleColor.action.withValues(alpha: .2),
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => TextStyle(
           fontSize: 11,

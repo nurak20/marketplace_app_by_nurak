@@ -18,7 +18,8 @@ class ProductArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (image?.url.isNotEmpty == true) return _networkImage(image!.url);
+    final imageUrl = image?.url;
+    if (imageUrl?.isNotEmpty == true) return _networkImage(imageUrl!);
     return _placeholder();
   }
 

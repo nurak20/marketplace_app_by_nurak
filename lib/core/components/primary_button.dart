@@ -20,8 +20,8 @@ class PrimaryButton extends StatelessWidget {
     child: FilledButton(
       onPressed: busy ? null : onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: StyleColor.ink,
-        foregroundColor: Colors.white,
+        backgroundColor: StyleColor.action,
+        foregroundColor: StyleColor.canvas,
         minimumSize: const Size.fromHeight(52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),

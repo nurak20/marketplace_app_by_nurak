@@ -49,7 +49,9 @@ class ProductCard extends StatelessWidget {
                     ),
                     style: IconButton.styleFrom(
                       iconSize: StyleColor.iconSize,
-                      backgroundColor: Colors.white.withValues(alpha: .92),
+                      backgroundColor: StyleColor.surface.withValues(
+                        alpha: .96,
+                      ),
                     ),
                   ),
                 ),
@@ -58,7 +60,7 @@ class ProductCard extends StatelessWidget {
                 bottom: 12,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: StyleColor.ink,
+                    color: StyleColor.action,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Padding(
@@ -67,9 +69,9 @@ class ProductCard extends StatelessWidget {
                       vertical: 6,
                     ),
                     child: Text(
-                      '\$${product.price.toStringAsFixed(2)}',
+                      '\$${(product.price ?? 0).toStringAsFixed(2)}',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: StyleColor.canvas,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -84,7 +86,7 @@ class ProductCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  product.title,
+                  product.title ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

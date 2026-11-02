@@ -19,8 +19,8 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final diameter = size ?? radius * 2;
-    final avatarUrl = profile?.avatar?.url.trim();
-    final name = profile?.displayName.trim() ?? '';
+    final avatarUrl = (profile?.avatar?.url ?? '').trim();
+    final name = (profile?.displayName ?? '').trim();
     final initials = name
         .split(RegExp(r'\s+'))
         .where((part) => part.isNotEmpty)
@@ -53,9 +53,9 @@ class UserAvatar extends StatelessWidget {
         color: StyleColor.softMint,
         shape: BoxShape.circle,
       ),
-      child: avatarUrl?.isNotEmpty == true
+      child: avatarUrl.isNotEmpty
           ? Image.network(
-              api.resolveUrl(avatarUrl!),
+              api.resolveUrl(avatarUrl),
               width: diameter,
               height: diameter,
               fit: BoxFit.cover,

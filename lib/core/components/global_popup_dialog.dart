@@ -50,8 +50,8 @@ abstract final class GlobalPopupDialog {
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
           style: FilledButton.styleFrom(
-            backgroundColor: StyleColor.ink,
-            foregroundColor: Colors.white,
+            backgroundColor: StyleColor.action,
+            foregroundColor: StyleColor.canvas,
           ),
           child: _buttonText(yesText ?? 'common.yes'.tr()),
         ),
@@ -112,8 +112,8 @@ abstract final class GlobalPopupDialog {
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             style: FilledButton.styleFrom(
-              backgroundColor: StyleColor.ink,
-              foregroundColor: Colors.white,
+              backgroundColor: StyleColor.action,
+              foregroundColor: StyleColor.canvas,
             ),
             child: _buttonText(buttonText),
           ),
@@ -176,7 +176,7 @@ abstract final class GlobalPopupDialog {
 
     final navigator = Navigator.of(context, rootNavigator: true);
     final route = RawDialogRoute<void>(
-      barrierColor: Colors.white.withValues(alpha: .8),
+      barrierColor: Colors.black.withValues(alpha: .72),
       barrierDismissible: dismiss,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       settings: const RouteSettings(name: 'marketplace/loading'),
@@ -188,7 +188,7 @@ abstract final class GlobalPopupDialog {
             Positioned.fill(
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: ColoredBox(color: Colors.white.withValues(alpha: .01)),
+                child: const ColoredBox(color: Colors.transparent),
               ),
             ),
             Center(

@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'components/global_popup_dialog.dart';
+import 'api_response.dart';
 import 'models.dart';
 import 'singleton.dart';
 import 'session_store.dart';
+
+export 'api_response.dart';
 
 /// The app-wide API singleton. All feature screens use the same Dio client.
 final Api api = Api.instance;
@@ -155,15 +159,45 @@ class Api {
     return Uri.parse(dio.options.baseUrl).resolve(path).toString();
   }
 
-  Future<Object?> _request(Future<Response<dynamic>> Function() call) async =>
-      _unwrap((await call()).data);
+  Future<Object?> _request(Future<Response<dynamic>> Function() call) async {
+    try {
+      final raw = (await call()).data;
+      if (raw is Map) {
+        final json = Map<String, dynamic>.from(raw);
+        final response = ResponseRes<Object?, Object?>.fromJson(
+          json,
+          deserialize: (value) => value,
+          languageCode: _languageCode,
+        );
+        final isResponseEnvelope =
+            json.containsKey('success') &&
+            const {'data', 'code', 'message', 'log_id'}.any(json.containsKey);
+        if (isResponseEnvelope && response.success == false) {
+          throw ApiResponseException(response);
+        }
+      }
+      return _unwrap(raw);
+    } on DioException catch (error) {
+      final type = failureType(error);
+      final message =
+          _serverMessage(error.response?.data) ??
+          _failureMessage(type, error.response?.statusCode);
+      throw ApiResponseException(
+        ResponseRes<Object?, Object?>.noDataResponse(
+          failureType: type,
+          message: message,
+        ),
+        cause: error,
+      );
+    }
+  }
 
   Object? _unwrap(Object? value) =>
       value is Map && value.containsKey('data') ? value['data'] : value;
 
   Future<String> _token(String path, JsonMap body) async {
-    final response = await dio.post(path, data: body);
-    return '${_unwrap(response.data) is Map ? (_unwrap(response.data) as Map)['token'] : ''}';
+    final response = await _request(() => dio.post(path, data: body));
+    return '${response is Map ? response['token'] ?? '' : ''}';
   }
 
   Future<String> login(String email, String password) =>
@@ -243,7 +277,7 @@ class Api {
     return account;
   }
 
-  Future<ApiPage<Account>> managementUsers() async => ApiPage<Account>.fromJson(
+  Future<ApiPage<Account>> managementUsers() async => ApiPage.fromJson<Account>(
     asJsonMap(
       await _request(
         () =>
@@ -408,7 +442,7 @@ class Api {
       );
 
   Future<ApiPage<ManagementPost>> managementPosts() async =>
-      ApiPage<ManagementPost>.fromJson(
+      ApiPage.fromJson<ManagementPost>(
         asJsonMap(
           await _request(
             () => dio.get(
@@ -477,7 +511,7 @@ class Api {
       ),
     );
     _captureMarketplaceOptions(response);
-    return ApiPage<Product>.fromJson(response, Product.fromJson);
+    return ApiPage.fromJson<Product>(response, Product.fromJson);
   }
 
   Future<Product> product(int id, {int? postId}) async => Product.fromJson(
@@ -533,7 +567,7 @@ class Api {
         ),
       );
 
-  Future<ApiPage<Review>> reviews(int id) async => ApiPage.fromJson(
+  Future<ApiPage<Review>> reviews(int id) async => ApiPage.fromJson<Review>(
     asJsonMap(
       await _request(
         () => dio.get(
@@ -556,7 +590,7 @@ class Api {
       await _request(() => dio.get('/posts', queryParameters: query)),
     );
     _captureMarketplaceOptions(response);
-    return ApiPage<MarketplacePost>.fromJson(
+    return ApiPage.fromJson<MarketplacePost>(
       response,
       MarketplacePost.fromJson,
     );
@@ -616,7 +650,7 @@ class Api {
   }
 
   Future<int?> postIdForProduct(int productId, int sellerId) async {
-    final posts = ApiPage.fromJson(
+    final posts = ApiPage.fromJson<MarketplacePost>(
       asJsonMap(
         await _request(
           () => dio.get(
@@ -632,8 +666,8 @@ class Api {
       ),
       MarketplacePost.fromJson,
     );
-    for (final post in posts.items) {
-      if (post.products.any((product) => product.id == productId)) {
+    for (final post in posts.items ?? const []) {
+      if (post.products?.any((product) => product.id == productId) == true) {
         return post.id;
       }
     }
@@ -678,7 +712,7 @@ class Api {
   }
 
   Future<ApiPage<PostComment>> postComments(int postId) async =>
-      ApiPage.fromJson(
+      ApiPage.fromJson<PostComment>(
         asJsonMap(
           await _request(
             () => dio.get(
@@ -693,7 +727,7 @@ class Api {
   Future<ApiPage<PostComment>> productPostComments(
     int postId,
     int productId,
-  ) async => ApiPage.fromJson(
+  ) async => ApiPage.fromJson<PostComment>(
     asJsonMap(
       await _request(
         () => dio.get(
@@ -738,7 +772,7 @@ class Api {
   }
 
   Future<ApiPage<Product>> wishlist() async {
-    return ApiPage<Product>.fromJson(
+    return ApiPage.fromJson<Product>(
       asJsonMap(
         await _request(
           () => dio.get('/wishlist', queryParameters: {'page': 0, 'size': 30}),
@@ -775,7 +809,7 @@ class Api {
   Future<ApiPage<MarketplaceMessage>> conversation(
     int userId, {
     bool silent = false,
-  }) async => ApiPage.fromJson(
+  }) async => ApiPage.fromJson<MarketplaceMessage>(
     asJsonMap(
       await _request(
         () => dio.get(
@@ -807,7 +841,7 @@ class Api {
   Future<ApiPage<MarketplaceNotification>> notifications({
     int size = 50,
     bool silent = false,
-  }) async => ApiPage.fromJson(
+  }) async => ApiPage.fromJson<MarketplaceNotification>(
     asJsonMap(
       await _request(
         () => dio.get(
@@ -882,7 +916,7 @@ class Api {
       params['department'] = department!.trim();
     }
     if (query?.trim().isNotEmpty == true) params['q'] = query!.trim();
-    return ApiPage<EmployeeProfile>.fromJson(
+    return ApiPage.fromJson<EmployeeProfile>(
       asJsonMap(
         await _request(
           () => dio.get(
@@ -939,7 +973,7 @@ class Api {
   );
 
   Future<ApiPage<PayrollRun>> payrollRuns() async =>
-      ApiPage<PayrollRun>.fromJson(
+      ApiPage.fromJson<PayrollRun>(
         asJsonMap(
           await _request(
             () => dio.get(
@@ -973,7 +1007,7 @@ class Api {
   );
 
   Future<ApiPage<Payslip>> payrollRunPayslips(int runId) async =>
-      ApiPage<Payslip>.fromJson(
+      ApiPage.fromJson<Payslip>(
         asJsonMap(
           await _request(
             () => dio.get(
@@ -1027,7 +1061,7 @@ class Api {
     ),
   );
 
-  Future<ApiPage<Payslip>> myPayslips() async => ApiPage<Payslip>.fromJson(
+  Future<ApiPage<Payslip>> myPayslips() async => ApiPage.fromJson<Payslip>(
     asJsonMap(
       await _request(
         () => dio.get(
@@ -1117,26 +1151,91 @@ class Api {
     HeadcountReport.fromJson,
   );
 
+  static String? get _languageCode {
+    final context = Singleton.instance.navigatorKey.currentContext;
+    return context == null
+        ? null
+        : EasyLocalization.of(context)?.locale.languageCode;
+  }
+
+  static ApiFailureType failureType(Object error) {
+    if (error is ApiResponseException) {
+      return error.response.failureType ?? ApiFailureType.server;
+    }
+    if (error is! DioException) return ApiFailureType.unknown;
+    if (CancelToken.isCancel(error) || error.type == DioExceptionType.cancel) {
+      return ApiFailureType.cancelled;
+    }
+    if (const {
+      DioExceptionType.connectionTimeout,
+      DioExceptionType.sendTimeout,
+      DioExceptionType.receiveTimeout,
+    }.contains(error.type)) {
+      return ApiFailureType.timeout;
+    }
+    if (error.type == DioExceptionType.connectionError ||
+        error.response == null) {
+      return ApiFailureType.connection;
+    }
+    if (error.type == DioExceptionType.badResponse) {
+      return ApiFailureType.server;
+    }
+    return ApiFailureType.unknown;
+  }
+
+  static String? _serverMessage(Object? data) {
+    if (data is Map) {
+      return ResponseRes.messageFrom(
+        data['message'] ?? data['error'],
+        languageCode: _languageCode,
+      );
+    }
+    if (data is String &&
+        data.trim().isNotEmpty &&
+        data.trim().length <= 180 &&
+        !data.trimLeft().startsWith('<')) {
+      return data.trim();
+    }
+    return null;
+  }
+
+  static String _failureMessage(ApiFailureType type, int? statusCode) {
+    final isKhmer = _languageCode?.startsWith('km') == true;
+    return switch (type) {
+      ApiFailureType.cancelled =>
+        isKhmer ? 'សំណើត្រូវបានបោះបង់។' : 'Request cancelled.',
+      ApiFailureType.timeout =>
+        isKhmer
+            ? 'ការស្នើសុំបានផុតពេលកំណត់។ សូមព្យាយាមម្ដងទៀត។'
+            : 'Request timed out. Please try again.',
+      ApiFailureType.connection =>
+        isKhmer
+            ? 'មិនអាចភ្ជាប់ទៅម៉ាស៊ីនមេបានទេ។ សូមពិនិត្យការតភ្ជាប់ ហើយព្យាយាមម្ដងទៀត។'
+            : 'Could not connect to the marketplace API. Check your connection and try again.',
+      ApiFailureType.server =>
+        isKhmer
+            ? 'សំណើបានបរាជ័យ (HTTP ${statusCode ?? 'មិនស្គាល់'})។ សូមព្យាយាមម្ដងទៀត។'
+            : 'Request failed (HTTP ${statusCode ?? 'unknown'}). Please try again.',
+      ApiFailureType.unknown =>
+        isKhmer
+            ? 'មានបញ្ហាកើតឡើង។ សូមព្យាយាមម្ដងទៀត។'
+            : 'Something went wrong. Please try again.',
+    };
+  }
+
   static String errorMessage(Object error) {
+    if (error is ApiResponseException) {
+      final cause = error.cause;
+      return error.response.message ??
+          _failureMessage(
+            error.response.failureType ?? ApiFailureType.unknown,
+            cause is DioException ? cause.response?.statusCode : null,
+          );
+    }
     if (error is DioException) {
-      final data = error.response?.data;
-      if (data is Map) {
-        final message = data['message'] ?? data['error'];
-        if (message != null && '$message'.trim().isNotEmpty) {
-          return '$message';
-        }
-      }
-      if (data is String &&
-          data.trim().isNotEmpty &&
-          data.trim().length <= 180 &&
-          !data.trimLeft().startsWith('<')) {
-        return data.trim();
-      }
-      if (error.response == null) {
-        return 'Could not connect to the marketplace API.';
-      }
-      final statusCode = error.response?.statusCode ?? 'unknown';
-      return 'Request failed (HTTP $statusCode). Please try again.';
+      final serverMessage = _serverMessage(error.response?.data);
+      if (serverMessage != null) return serverMessage;
+      return _failureMessage(failureType(error), error.response?.statusCode);
     }
     final detail = error.toString().trim();
     if (detail.isNotEmpty && !detail.startsWith('Instance of ')) {

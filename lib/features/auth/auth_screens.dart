@@ -291,7 +291,7 @@ class _BrandMark extends StatelessWidget {
         height: 46,
         width: 46,
         decoration: BoxDecoration(
-          color: StyleColor.ink,
+          color: StyleColor.surfaceVariant,
           borderRadius: BorderRadius.circular(15),
         ),
         child: const Icon(Icons.storefront_rounded, color: StyleColor.accent),

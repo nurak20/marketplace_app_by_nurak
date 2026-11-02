@@ -8,8 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/choose_image_bottom_sheet.dart';
-import '../../core/components/localized_builder.dart';
-import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/mk_text_form_field.dart';
 import '../../core/components/primary_button.dart';
 import '../../core/components/show_error.dart';
@@ -49,9 +47,6 @@ class _SellScreenState extends State<SellScreen> {
   bool _busy = false;
   bool _optionsLoading = true;
 
-  // Built once so the text fields always get the 0.5 / 1 border theme,
-  // even when the adaptive scaffold does not pass the Material theme down.
-  final ThemeData _theme = buildAppTheme();
   List<String> _categories = marketplaceCategories.skip(1).toList();
   List<String> _conditions = productConditions;
 
@@ -66,8 +61,8 @@ class _SellScreenState extends State<SellScreen> {
       final options = await api.marketplaceOptions();
       if (!mounted) return;
       setState(() {
-        _categories = options.categories;
-        _conditions = options.conditions;
+        _categories = options.categories ?? const <String>[];
+        _conditions = options.conditions ?? const <String>[];
         for (final product in _products) {
           if (!_categories.contains(product.category)) {
             product.category = _categories.isEmpty ? '' : _categories.first;
@@ -182,10 +177,10 @@ class _SellScreenState extends State<SellScreen> {
       }, images);
 
       if (!mounted) return;
-      if (post.products.isEmpty) {
+      if (post.products?.isEmpty ?? true) {
         throw StateError('sell.missingProductsError'.tr());
       }
-      final firstProduct = post.products.first;
+      final firstProduct = post.products!.first;
       context.go('/products/${firstProduct.id}?postId=${post.id}');
     } catch (error) {
       if (mounted) showError(context, error);
@@ -365,57 +360,55 @@ class _SellScreenState extends State<SellScreen> {
   );
 
   @override
-  Widget build(BuildContext context) => LocalizedBuilder(
-    builder: (context) => Column(
-      children: [
-        if (!_optionsLoading && _categories.isEmpty)
-          _OptionsNotice(
-            icon: Icons.category_outlined,
-            message: 'sell.noCategoriesNotice'.tr(),
-          ),
-        if (!_optionsLoading && _conditions.isEmpty)
-          _OptionsNotice(
-            icon: Icons.fact_check_outlined,
-            message: 'sell.conditionsUnavailableNotice'.tr(),
-          ),
-        AbsorbPointer(
-          absorbing: _busy || _optionsLoading,
-          child: Column(
-            children: [
-              MKTextFormField(
-                controller: _caption,
-                minLines: 1,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'sell.postMessageOptional'.tr(),
-                  hintText: 'sell.postMessageHint'.tr(),
-                ),
+  Widget build(BuildContext context) => Column(
+    children: [
+      if (!_optionsLoading && _categories.isEmpty)
+        _OptionsNotice(
+          icon: Icons.category_outlined,
+          message: 'sell.noCategoriesNotice'.tr(),
+        ),
+      if (!_optionsLoading && _conditions.isEmpty)
+        _OptionsNotice(
+          icon: Icons.fact_check_outlined,
+          message: 'sell.conditionsUnavailableNotice'.tr(),
+        ),
+      AbsorbPointer(
+        absorbing: _busy || _optionsLoading,
+        child: Column(
+          children: [
+            MKTextFormField(
+              controller: _caption,
+              minLines: 1,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'sell.postMessageOptional'.tr(),
+                hintText: 'sell.postMessageHint'.tr(),
               ),
-              const SizedBox(height: 14),
-              for (var i = 0; i < _products.length; i++) ...[
-                _productEditor(_products[i], i),
-                const SizedBox(height: 12),
-              ],
-              OutlinedButton.icon(
-                onPressed: _addProduct,
-                icon: const Icon(Icons.add_circle_outline_rounded),
-                label: Text('sell.addAnotherProduct'.tr()),
-              ),
+            ),
+            const SizedBox(height: 14),
+            for (var i = 0; i < _products.length; i++) ...[
+              _productEditor(_products[i], i),
+              const SizedBox(height: 12),
             ],
-          ),
+            OutlinedButton.icon(
+              onPressed: _addProduct,
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              label: Text('sell.addAnotherProduct'.tr()),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
-        PrimaryButton(
-          label: _products.length == 1
-              ? 'sell.publishOne'.tr()
-              : 'sell.publishMany'.tr(
-                  namedArgs: {'count': '${_products.length}'},
-                ),
-          busy: _busy || _optionsLoading,
-          onPressed: _publish,
-        ),
-      ],
-    ),
+      ),
+      const SizedBox(height: 14),
+      PrimaryButton(
+        label: _products.length == 1
+            ? 'sell.publishOne'.tr()
+            : 'sell.publishMany'.tr(
+                namedArgs: {'count': '${_products.length}'},
+              ),
+        busy: _busy || _optionsLoading,
+        onPressed: _publish,
+      ),
+    ],
   );
 }
 
@@ -441,7 +434,7 @@ class _PhotoTile extends StatelessWidget {
               iconSize: StyleColor.iconSize,
               minimumSize: const Size(30, 30),
               padding: const EdgeInsets.all(6),
-              backgroundColor: Colors.white.withValues(alpha: .9),
+              backgroundColor: StyleColor.surface.withValues(alpha: .96),
               foregroundColor: StyleColor.ink,
             ),
           ),
@@ -461,7 +454,7 @@ class _OptionsNotice extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Card(
-      color: const Color(0xFFFFF8E9),
+      color: StyleColor.unreadSurface,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(

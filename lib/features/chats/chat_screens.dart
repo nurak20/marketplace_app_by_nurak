@@ -24,16 +24,19 @@ class ChatsScreen extends StatefulWidget {
 }
 
 class _ChatsScreenState extends State<ChatsScreen> {
-  late Future<List<_ChatThread>> _inbox;
+  List<_ChatThread> _inbox = const [];
+  bool _isLoading = true;
+  Object? _loadError;
+  int _loadGeneration = 0;
   final Map<int, UserProfile> _contacts = {};
   StreamSubscription<MarketplaceMessage>? _messages;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    unawaited(_load());
     _messages = NotificationHub.instance.messageEvents.listen((_) {
-      if (mounted) setState(_load);
+      if (mounted) unawaited(_load());
     });
   }
 
@@ -43,18 +46,39 @@ class _ChatsScreenState extends State<ChatsScreen> {
     super.dispose();
   }
 
-  void _load() {
-    _inbox = _fetchInbox();
+  Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
+    try {
+      final inbox = await _fetchInbox();
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _inbox = inbox;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<List<_ChatThread>> _fetchInbox() async {
     final messages = await api.inbox();
-    final currentUserId = Singleton.instance.account?.profile.id ?? -1;
+    final currentUserId = Singleton.instance.account?.profile?.id ?? -1;
     final threads = <int, MarketplaceMessage>{};
     for (final message in messages) {
       final id = message.senderId == currentUserId
           ? message.receiverId
           : message.senderId;
+      if (id == null) continue;
       threads.putIfAbsent(id, () => message);
     }
     return Future.wait(
@@ -85,31 +109,30 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Widget build(BuildContext context) => LocalizedBuilder(
     builder: (context) => Column(
       children: [
-        FutureBuilder<List<_ChatThread>>(
-          future: _inbox,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox.shrink();
-            }
-            if (snapshot.hasError) {
-              return _ErrorRetry(
-                error: snapshot.error!,
-                onRetry: () => setState(() {
-                  _load();
-                }),
-              );
-            }
-            final threads = snapshot.data!;
-            if (threads.isEmpty) {
-              return EmptyState(
-                title: 'chat.emptyTitle'.tr(),
-                message: 'chat.emptyMessage'.tr(),
-                icon: Icons.chat_bubble_outline_rounded,
-              );
-            }
-            return Column(
+        if (_isLoading)
+          const Expanded(
+            child: Center(child: CircularProgressIndicator.adaptive()),
+          )
+        else if (_loadError != null)
+          Expanded(
+            child: _ErrorRetry(
+              error: _loadError!,
+              onRetry: () => unawaited(_load()),
+            ),
+          )
+        else if (_inbox.isEmpty)
+          Expanded(
+            child: EmptyState(
+              title: 'chat.emptyTitle'.tr(),
+              message: 'chat.emptyMessage'.tr(),
+              icon: Icons.chat_bubble_outline_rounded,
+            ),
+          )
+        else
+          Expanded(
+            child: ListView(
               children: [
-                ...threads.map((thread) {
+                ..._inbox.map((thread) {
                   final profile = thread.contact;
                   return ListTile(
                     leading: UserAvatar(profile: profile),
@@ -121,7 +144,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w400),
                     ),
                     subtitle: Text(
-                      thread.message.content,
+                      thread.message.content ?? '',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -135,9 +158,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   );
                 }),
               ],
-            );
-          },
-        ),
+            ),
+          ),
       ],
     ),
   );
@@ -172,7 +194,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _messagesSub = NotificationHub.instance.messageEvents.listen(_onMessage);
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool showLoading = false}) async {
     final account = Singleton.instance.account;
     if (account == null) {
       if (!mounted) return;
@@ -182,11 +204,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
       });
       return;
     }
+    if (showLoading && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
-      final fetched = (await api.conversation(
-        widget.userId,
-        silent: true,
-      )).items.toList()..sort((a, b) => a.id.compareTo(b.id));
+      final fetched =
+          (await api.conversation(widget.userId, silent: true)).items ??
+                const <MarketplaceMessage>[]
+            ..sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
       if (!mounted) return;
       final merged = _merge(fetched);
       UserProfile? peer = _contact;
@@ -196,7 +224,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             await api.profile(widget.userId, silent: true),
           );
         } catch (_) {
-          peer = _contactOf(merged, account.profile.id);
+          peer = _contactOf(merged, account.profile?.id ?? -1);
         }
         if (!mounted) return;
       }
@@ -227,7 +255,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ...fetched,
       ..._messages.where((message) => !ids.contains(message.id)),
     ];
-    merged.sort((a, b) => a.id.compareTo(b.id));
+    merged.sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
     return merged;
   }
 
@@ -252,7 +280,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   void _onMessage(MarketplaceMessage message) {
-    final me = _account?.profile.id;
+    final me = _account?.profile?.id;
     if (me == null) return;
     final fromPeer =
         message.senderId == widget.userId && message.receiverId == me;
@@ -271,10 +299,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   /// Drops optimistic copies once the server-confirmed message arrives.
   void _settlePending(Iterable<MarketplaceMessage> received) {
-    final me = _account?.profile.id;
+    final me = _account?.profile?.id;
     if (me == null) return;
     for (final message in received) {
-      if (message.senderId != me || message.id < 0) continue;
+      if (message.senderId != me || (message.id ?? 0) < 0) continue;
       final index = _pending.indexWhere(
         (item) => item.content == message.content,
       );
@@ -294,9 +322,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final content = _composer.text.trim();
     final account = _account;
     if (content.isEmpty || account == null) return;
+    final draftId = _nextPendingId--;
     final draft = MarketplaceMessage(
-      id: _nextPendingId--,
-      senderId: account.profile.id,
+      id: draftId,
+      senderId: account.profile?.id,
       receiverId: widget.userId,
       productId: widget.productId,
       content: content,
@@ -304,7 +333,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
     setState(() {
       _pending.add(draft);
-      _inflight.add(draft.id);
+      _inflight.add(draftId);
       _composer.clear();
     });
     _scrollToLatest(animate: true);
@@ -316,15 +345,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _inflight.remove(draft.id);
+        _inflight.remove(draftId);
       });
       // The socket echo normally settles the draft; this covers a dropped socket.
       unawaited(_load());
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _pending.removeWhere((item) => item.id == draft.id);
-        _inflight.remove(draft.id);
+        _pending.removeWhere((item) => item.id == draftId);
+        _inflight.remove(draftId);
         if (_composer.text.isEmpty) _composer.text = content;
       });
       showError(context, error);
@@ -372,10 +401,27 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final account = _account;
     final error = _error;
     if (account == null) {
-      if (error == null || _loading) return const SizedBox.shrink();
-      return _ErrorRetry(error: error, onRetry: _load);
+      if (_loading) {
+        return const Center(child: CircularProgressIndicator.adaptive());
+      }
+      if (error != null) {
+        return _ErrorRetry(
+          error: error,
+          onRetry: () => unawaited(_load(showLoading: true)),
+        );
+      }
+      return const SizedBox.shrink();
     }
     final messages = [..._messages, ..._pending];
+    if (_loading && messages.isEmpty) {
+      return const Center(child: CircularProgressIndicator.adaptive());
+    }
+    if (error != null && messages.isEmpty) {
+      return _ErrorRetry(
+        error: error,
+        onRetry: () => unawaited(_load(showLoading: true)),
+      );
+    }
     final product = _product;
     return Column(
       children: [
@@ -396,12 +442,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 ),
               ),
               title: Text(
-                product.title,
+                product.title ?? '',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w400),
               ),
-              subtitle: Text('\$${product.price.toStringAsFixed(2)}'),
+              subtitle: Text('\$${(product.price ?? 0).toStringAsFixed(2)}'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/products/${product.id}'),
             ),
@@ -458,8 +504,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   icon: const Icon(Icons.send_rounded),
                   style: IconButton.styleFrom(
                     iconSize: StyleColor.iconSize,
-                    backgroundColor: StyleColor.ink,
-                    foregroundColor: Colors.white,
+                    backgroundColor: StyleColor.action,
+                    foregroundColor: StyleColor.canvas,
                   ),
                 ),
               ],
@@ -529,7 +575,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mine = message.senderId == account.profile.id;
+    final mine = message.senderId == account.profile?.id;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
@@ -558,7 +604,7 @@ class _MessageBubble extends StatelessWidget {
             margin: const EdgeInsets.symmetric(vertical: 5),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: mine ? StyleColor.ink : Colors.white,
+              color: mine ? StyleColor.action : StyleColor.surfaceVariant,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(17),
                 topRight: const Radius.circular(17),
@@ -567,8 +613,10 @@ class _MessageBubble extends StatelessWidget {
               ),
             ),
             child: Text(
-              message.content,
-              style: TextStyle(color: mine ? Colors.white : StyleColor.ink),
+              message.content ?? '',
+              style: TextStyle(
+                color: mine ? StyleColor.canvas : StyleColor.ink,
+              ),
             ),
           ),
           if (mine) ...[

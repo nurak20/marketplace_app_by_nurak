@@ -85,7 +85,7 @@ class _ManagementScreenState extends State<ManagementScreen> {
   Account? get _account => Singleton.instance.account;
 
   List<_SectionSpec> get _availableSections => _sectionSpecs
-      .where((spec) => _account?.permissions.contains(spec.permission) == true)
+      .where((spec) => _account?.permissions?.contains(spec.permission) == true)
       .toList();
 
   @override
@@ -116,7 +116,7 @@ class _ManagementScreenState extends State<ManagementScreen> {
       switch (section) {
         case _ManagementSection.users:
           final page = await api.managementUsers();
-          if (mounted) setState(() => _users = page.items);
+          if (mounted) setState(() => _users = page.items ?? const <Account>[]);
         case _ManagementSection.categories:
           final result = await api.managementCategories();
           if (mounted) {
@@ -131,7 +131,9 @@ class _ManagementScreenState extends State<ManagementScreen> {
           }
         case _ManagementSection.posts:
           final page = await api.managementPosts();
-          if (mounted) setState(() => _posts = page.items);
+          if (mounted) {
+            setState(() => _posts = page.items ?? const <ManagementPost>[]);
+          }
       }
     } catch (error) {
       if (mounted) setState(() => _error = error);
@@ -161,27 +163,29 @@ class _ManagementScreenState extends State<ManagementScreen> {
 
   void _syncCategoryCache() => api.updateMarketplaceCategoryNames(
     _categories
-        .where((category) => category.active)
-        .map((category) => category.name),
+        .where((category) => category.active == true)
+        .map((category) => category.name)
+        .whereType<String>(),
   );
 
   Future<void> _updateUser(Account user, {bool? canSell, bool? active}) async {
-    final key =
-        'user-${user.profile.id}-${canSell == null ? 'active' : 'sell'}';
+    final userId = user.profile?.id;
+    if (userId == null) return;
+    final key = 'user-$userId-${canSell == null ? 'active' : 'sell'}';
     if (_busyKeys.contains(key)) return;
     _setBusy(key, true);
     try {
       final updated = canSell == null
-          ? await api.setUserActive(user.profile.id, active!)
-          : await api.setUserSelling(user.profile.id, canSell);
+          ? await api.setUserActive(userId, active!)
+          : await api.setUserSelling(userId, canSell);
       if (!mounted) return;
       setState(() {
         final index = _users.indexWhere(
-          (item) => item.profile.id == updated.profile.id,
+          (item) => item.profile?.id == updated.profile?.id,
         );
         if (index >= 0) _users[index] = updated;
       });
-      if (_account?.profile.id == updated.profile.id) {
+      if (_account?.profile?.id == updated.profile?.id) {
         Singleton.instance.setAccount(updated);
       }
     } catch (error) {
@@ -192,19 +196,21 @@ class _ManagementScreenState extends State<ManagementScreen> {
   }
 
   Future<void> _updateUserRole(Account user, String roleName) async {
-    final key = 'user-${user.profile.id}-role';
+    final userId = user.profile?.id;
+    if (userId == null) return;
+    final key = 'user-$userId-role';
     if (_busyKeys.contains(key)) return;
     _setBusy(key, true);
     try {
-      final updated = await api.setUserStaffRole(user.profile.id, roleName);
+      final updated = await api.setUserStaffRole(userId, roleName);
       if (!mounted) return;
       setState(() {
         final index = _users.indexWhere(
-          (item) => item.profile.id == updated.profile.id,
+          (item) => item.profile?.id == updated.profile?.id,
         );
         if (index >= 0) _users[index] = updated;
       });
-      if (_account?.profile.id == updated.profile.id) {
+      if (_account?.profile?.id == updated.profile?.id) {
         Singleton.instance.setAccount(updated);
       }
     } catch (error) {
@@ -335,10 +341,12 @@ class _ManagementScreenState extends State<ManagementScreen> {
       final category = await api.createManagementCategory(name);
       if (!mounted) return;
       setState(() {
-        _categories = [
-          ..._categories,
-          category,
-        ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        _categories = [..._categories, category]
+          ..sort(
+            (a, b) => (a.name ?? '').toLowerCase().compareTo(
+              (b.name ?? '').toLowerCase(),
+            ),
+          );
         _categoryController.clear();
       });
       _syncCategoryCache();
@@ -350,8 +358,10 @@ class _ManagementScreenState extends State<ManagementScreen> {
   }
 
   Future<void> _editCategory(ManagementCategory category) async {
+    final categoryId = category.id;
+    if (categoryId == null) return;
     final formKey = GlobalKey<FormState>();
-    final controller = TextEditingController(text: category.name);
+    final controller = TextEditingController(text: category.name ?? '');
     final name = await showMarketplaceFormDialog<String>(
       context: context,
       title: 'manage.renameCategory'.tr(),
@@ -374,10 +384,10 @@ class _ManagementScreenState extends State<ManagementScreen> {
       onSubmit: (_) async => controller.text.trim(),
     );
     if (name == null || name.isEmpty || !mounted) return;
-    final key = 'category-${category.id}';
+    final key = 'category-$categoryId';
     _setBusy(key, true);
     try {
-      final updated = await api.renameManagementCategory(category.id, name);
+      final updated = await api.renameManagementCategory(categoryId, name);
       if (mounted) {
         setState(() {
           final index = _categories.indexWhere((item) => item.id == updated.id);
@@ -396,13 +406,12 @@ class _ManagementScreenState extends State<ManagementScreen> {
     ManagementCategory category,
     bool active,
   ) async {
-    final key = 'category-${category.id}';
+    final categoryId = category.id;
+    if (categoryId == null) return;
+    final key = 'category-$categoryId';
     _setBusy(key, true);
     try {
-      final updated = await api.setManagementCategoryActive(
-        category.id,
-        active,
-      );
+      final updated = await api.setManagementCategoryActive(categoryId, active);
       if (mounted) {
         setState(() {
           final index = _categories.indexWhere((item) => item.id == updated.id);
@@ -418,15 +427,19 @@ class _ManagementScreenState extends State<ManagementScreen> {
   }
 
   Future<void> _archiveCategory(ManagementCategory category) async {
+    final categoryId = category.id;
+    if (categoryId == null) return;
     final confirmed = await _confirmArchive(
       'manage.archiveCategoryTitle'.tr(),
-      'manage.archiveCategoryMessage'.tr(namedArgs: {'name': category.name}),
+      'manage.archiveCategoryMessage'.tr(
+        namedArgs: {'name': category.name ?? ''},
+      ),
     );
     if (!confirmed || !mounted) return;
-    final key = 'category-${category.id}';
+    final key = 'category-$categoryId';
     _setBusy(key, true);
     try {
-      final updated = await api.archiveManagementCategory(category.id);
+      final updated = await api.archiveManagementCategory(categoryId);
       if (mounted) {
         setState(() {
           final index = _categories.indexWhere((item) => item.id == updated.id);
@@ -450,7 +463,7 @@ class _ManagementScreenState extends State<ManagementScreen> {
       if (!mounted) return;
       setState(() {
         _conditions = [..._conditions, condition]
-          ..sort((a, b) => a.code.compareTo(b.code));
+          ..sort((a, b) => (a.code ?? '').compareTo(b.code ?? ''));
         _conditionController.clear();
       });
       _syncConditionCache();
@@ -462,9 +475,11 @@ class _ManagementScreenState extends State<ManagementScreen> {
   }
 
   Future<void> _editCondition(ManagementCondition condition) async {
+    final conditionCode = condition.code;
+    if (conditionCode == null) return;
     final formKey = GlobalKey<FormState>();
     final controller = TextEditingController(
-      text: _conditionName(condition.code),
+      text: _conditionName(conditionCode),
     );
     final name = await showMarketplaceFormDialog<String>(
       context: context,
@@ -488,17 +503,17 @@ class _ManagementScreenState extends State<ManagementScreen> {
       onSubmit: (_) async => controller.text.trim(),
     );
     if (name == null || name.isEmpty || !mounted) return;
-    final key = 'condition-${condition.code}';
+    final key = 'condition-$conditionCode';
     _setBusy(key, true);
     try {
-      final updated = await api.renameManagementCondition(condition.code, name);
+      final updated = await api.renameManagementCondition(conditionCode, name);
       if (mounted) {
         setState(() {
           final index = _conditions.indexWhere(
             (item) => item.code == condition.code,
           );
           if (index >= 0) _conditions[index] = updated;
-          _conditions.sort((a, b) => a.code.compareTo(b.code));
+          _conditions.sort((a, b) => (a.code ?? '').compareTo(b.code ?? ''));
         });
         _syncConditionCache();
       }
@@ -513,11 +528,13 @@ class _ManagementScreenState extends State<ManagementScreen> {
     ManagementCondition condition,
     bool active,
   ) async {
-    final key = 'condition-${condition.code}';
+    final conditionCode = condition.code;
+    if (conditionCode == null) return;
+    final key = 'condition-$conditionCode';
     _setBusy(key, true);
     try {
       final updated = await api.setManagementConditionActive(
-        condition.code,
+        conditionCode,
         active,
       );
       if (mounted) {
@@ -537,17 +554,19 @@ class _ManagementScreenState extends State<ManagementScreen> {
   }
 
   Future<void> _archiveCondition(ManagementCondition condition) async {
+    final conditionCode = condition.code;
+    if (conditionCode == null) return;
     final confirmed = await _confirmArchive(
       'manage.archiveConditionTitle'.tr(),
       'manage.archiveConditionMessage'.tr(
-        namedArgs: {'name': _conditionName(condition.code)},
+        namedArgs: {'name': _conditionName(conditionCode)},
       ),
     );
     if (!confirmed || !mounted) return;
-    final key = 'condition-${condition.code}';
+    final key = 'condition-$conditionCode';
     _setBusy(key, true);
     try {
-      final updated = await api.archiveManagementCondition(condition.code);
+      final updated = await api.archiveManagementCondition(conditionCode);
       if (mounted) {
         setState(() {
           final index = _conditions.indexWhere(
@@ -585,10 +604,12 @@ class _ManagementScreenState extends State<ManagementScreen> {
       false;
 
   Future<void> _setPostAvailable(ManagementPost post, bool available) async {
+    final postId = post.id;
+    if (postId == null) return;
     final key = 'post-${post.id}';
     _setBusy(key, true);
     try {
-      final updated = await api.setManagementPostAvailable(post.id, available);
+      final updated = await api.setManagementPostAvailable(postId, available);
       if (mounted) {
         setState(() {
           final index = _posts.indexWhere((item) => item.id == updated.id);
@@ -800,17 +821,17 @@ class _ManagementScreenState extends State<ManagementScreen> {
                   _userIdentity(user),
                   _roleLabel(user),
                   _switchControl(
-                    key: 'user-${user.profile.id}-active',
-                    value: user.active,
-                    label: user.active
+                    key: 'user-${user.profile?.id}-active',
+                    value: user.active == true,
+                    label: user.active == true
                         ? 'manage.active'.tr()
                         : 'manage.disabled'.tr(),
                     onChanged: (value) => _updateUser(user, active: value),
                   ),
                   _switchControl(
-                    key: 'user-${user.profile.id}-sell',
-                    value: user.canSell,
-                    label: user.canSell
+                    key: 'user-${user.profile?.id}-sell',
+                    value: user.canSell == true,
+                    label: user.canSell == true
                         ? 'manage.enabled'.tr()
                         : 'manage.disabled'.tr(),
                     onChanged: (value) => _updateUser(user, canSell: value),
@@ -832,13 +853,13 @@ class _ManagementScreenState extends State<ManagementScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              user.profile.displayName,
+              user.profile?.displayName ?? 'manage.roleFallback'.tr(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             Text(
-              user.email ?? user.profile.username,
+              user.email ?? user.profile?.username ?? '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: StyleColor.muted, fontSize: 12),
@@ -850,7 +871,8 @@ class _ManagementScreenState extends State<ManagementScreen> {
   );
 
   Widget _roleLabel(Account user) {
-    final labels = user.roles
+    final roles = user.roles ?? const <String>[];
+    final labels = roles
         .map((role) => role.replaceFirst('ROLE_', '').replaceAll('_', ' '))
         .join(', ');
     return Row(
@@ -864,11 +886,12 @@ class _ManagementScreenState extends State<ManagementScreen> {
             style: const TextStyle(color: StyleColor.muted, fontSize: 12),
           ),
         ),
-        if (_account?.canManageRoles == true &&
-            !user.roles.contains('ROLE_ADMIN'))
+        if (_account?.canManageRoles == true && !roles.contains('ROLE_ADMIN'))
           PopupMenuButton<String>(
             tooltip: 'manage.assignStaffRole'.tr(),
-            enabled: !_busyKeys.contains('user-${user.profile.id}-role'),
+            enabled:
+                user.profile?.id != null &&
+                !_busyKeys.contains('user-${user.profile?.id}-role'),
             onSelected: (roleName) => _updateUserRole(user, roleName),
             itemBuilder: (context) => [
               for (final option in _managementRoleOptions)
@@ -954,13 +977,13 @@ class _ManagementScreenState extends State<ManagementScreen> {
                   for (final category in _categories)
                     [
                       Text(
-                        category.name,
+                        category.name ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       _statusLabel(
-                        category.active,
+                        category.active == true,
                         enabledText: 'manage.availableToSellers'.tr(),
                         disabledText: 'manage.hiddenFromNewListings'.tr(),
                       ),
@@ -978,7 +1001,8 @@ class _ManagementScreenState extends State<ManagementScreen> {
                           IconButton(
                             tooltip: 'manage.archiveCategory'.tr(),
                             onPressed:
-                                !category.active ||
+                                category.active != true ||
+                                    category.id == null ||
                                     _busyKeys.contains(
                                       'category-${category.id}',
                                     )
@@ -988,8 +1012,8 @@ class _ManagementScreenState extends State<ManagementScreen> {
                           ),
                           _switchControl(
                             key: 'category-${category.id}',
-                            value: category.active,
-                            label: category.active
+                            value: category.active == true,
+                            label: category.active == true
                                 ? 'manage.on'.tr()
                                 : 'manage.off'.tr(),
                             onChanged: (value) =>
@@ -1062,11 +1086,11 @@ class _ManagementScreenState extends State<ManagementScreen> {
                   for (final condition in _conditions)
                     [
                       Text(
-                        _conditionName(condition.code),
+                        _conditionName(condition.code ?? ''),
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       _statusLabel(
-                        condition.active,
+                        condition.active == true,
                         enabledText: 'manage.availableToSellers'.tr(),
                         disabledText: 'manage.unavailableForListings'.tr(),
                       ),
@@ -1086,7 +1110,8 @@ class _ManagementScreenState extends State<ManagementScreen> {
                           IconButton(
                             tooltip: 'manage.archiveCondition'.tr(),
                             onPressed:
-                                !condition.active ||
+                                condition.active != true ||
+                                    condition.code == null ||
                                     _busyKeys.contains(
                                       'condition-${condition.code}',
                                     )
@@ -1096,8 +1121,8 @@ class _ManagementScreenState extends State<ManagementScreen> {
                           ),
                           _switchControl(
                             key: 'condition-${condition.code}',
-                            value: condition.active,
-                            label: condition.active
+                            value: condition.active == true,
+                            label: condition.active == true
                                 ? 'manage.on'.tr()
                                 : 'manage.off'.tr(),
                             onChanged: (value) =>
@@ -1114,8 +1139,9 @@ class _ManagementScreenState extends State<ManagementScreen> {
 
   void _syncConditionCache() => api.updateMarketplaceConditionCodes(
     _conditions
-        .where((condition) => condition.active)
-        .map((condition) => condition.code),
+        .where((condition) => condition.active == true)
+        .map((condition) => condition.code)
+        .whereType<String>(),
   );
 
   Widget _postsView() {
@@ -1167,17 +1193,17 @@ class _ManagementScreenState extends State<ManagementScreen> {
                       'manage.userRef'.tr(namedArgs: {'id': '${post.userId}'}),
                     ),
                     Text(
-                      post.content.trim().isEmpty
+                      (post.content ?? '').trim().isEmpty
                           ? 'manage.noCaption'.tr()
-                          : post.content.trim(),
+                          : post.content!.trim(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(_dateLabel(post.createdAt)),
                     _switchControl(
                       key: 'post-${post.id}',
-                      value: !post.removed,
-                      label: post.removed
+                      value: post.removed != true,
+                      label: post.removed == true
                           ? 'manage.removed'.tr()
                           : 'manage.visible'.tr(),
                       onChanged: (available) =>

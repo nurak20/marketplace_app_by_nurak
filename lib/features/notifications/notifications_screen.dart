@@ -36,9 +36,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _open(MarketplaceNotification item) async {
-    if (!item.isRead) {
+    if (item.isRead == false) {
       try {
-        await NotificationHub.instance.markRead(item.id);
+        await NotificationHub.instance.markRead(item.id ?? 0);
       } catch (_) {
         // Navigation should still work if the read receipt fails.
       }
@@ -153,7 +153,9 @@ class _NotificationCard extends StatelessWidget {
     final avatarUrl = actor?.avatarUrl?.trim();
     return Card(
       margin: EdgeInsets.zero,
-      color: item.isRead ? Colors.white : StyleColor.unreadSurface,
+      color: (item.isRead ?? false)
+          ? StyleColor.surface
+          : StyleColor.unreadSurface,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -178,7 +180,7 @@ class _NotificationCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       )
-                    : Icon(_iconFor(item.type), color: StyleColor.ink),
+                    : Icon(_iconFor(item.type ?? ''), color: StyleColor.ink),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -189,13 +191,13 @@ class _NotificationCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            actor?.displayName ?? _labelFor(item.type),
+                            actor?.displayName ?? _labelFor(item.type ?? ""),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
-                        if (!item.isRead) ...[
+                        if (item.isRead == false) ...[
                           const SizedBox(width: 6),
                           Container(
                             width: 8,
@@ -220,16 +222,16 @@ class _NotificationCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _labelFor(item.type),
+                      _labelFor(item.type ?? ''),
                       style: const TextStyle(
                         color: StyleColor.muted,
                         fontSize: 12,
                       ),
                     ),
-                    if (item.message.isNotEmpty) ...[
+                    if (item.message?.isNotEmpty == true) ...[
                       const SizedBox(height: 6),
                       Text(
-                        item.message,
+                        item.message ?? '',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -239,7 +241,7 @@ class _NotificationCard extends StatelessWidget {
                       spacing: 14,
                       runSpacing: 4,
                       children: [
-                        if (item.itemCount > 0)
+                        if (item.itemCount != null && item.itemCount! > 0)
                           _MetaLine(
                             icon: Icons.inventory_2_outlined,
                             label: 'notifications.itemCount'.tr(

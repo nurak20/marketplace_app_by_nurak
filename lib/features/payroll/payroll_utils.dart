@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
 
-String payrollMoney(double value, [String? currency]) {
+String payrollMoney(double? amount, [String? currency]) {
+  final value = amount ?? 0;
   final code = (currency?.trim().isNotEmpty ?? false)
       ? currency!.trim().toUpperCase()
       : 'USD';
@@ -18,9 +19,12 @@ String payrollMoney(double value, [String? currency]) {
   return '${value < 0 ? '-' : ''}$code $grouped${fixed.substring(dot)}';
 }
 
-String payrollAmountText(double value) => value == value.roundToDouble()
-    ? value.toStringAsFixed(0)
-    : value.toStringAsFixed(2);
+String payrollAmountText(double? amount) {
+  final value = amount ?? 0;
+  return value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
+}
 
 double? payrollParseAmount(String? value) =>
     double.tryParse((value ?? '').trim());
@@ -84,14 +88,14 @@ String payrollStatusLabel(String code) {
   return key == null ? code : key.tr();
 }
 
-String employmentStatusLabel(String status) {
-  final code = status.trim();
+String employmentStatusLabel(String? status) {
+  final code = status?.trim() ?? '';
   return code.isEmpty
       ? 'payroll.employment.active'.tr()
       : payrollStatusLabel(code);
 }
 
-Color employmentStatusColor(String status) => switch (status) {
+Color employmentStatusColor(String? status) => switch (status) {
   'ON_LEAVE' => StyleColor.accent,
   'TERMINATED' => const Color(0xFFB3261E),
   _ => StyleColor.success,

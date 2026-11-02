@@ -1,5 +1,6 @@
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -26,7 +27,6 @@ import 'features/profile/change_password_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/reports/reports_screen.dart';
 import 'features/reviews/review_screen.dart';
-import 'shell/app_shell.dart';
 
 CustomTransitionPage<void> _fadeTabPage(GoRouterState state, Widget child) =>
     CustomTransitionPage<void>(
@@ -203,13 +203,22 @@ class _MarketplaceAppState extends State<MarketplaceApp> {
     final localization = EasyLocalization.of(context)!;
     return AdaptiveApp.router(
       title: 'Nurak MK27',
-      themeMode: ThemeMode.system,
-      materialLightTheme: buildAppTheme(),
+      themeMode: ThemeMode.dark,
+      materialDarkTheme: buildAppTheme(),
+      cupertinoDarkTheme: CupertinoThemeData(
+        brightness: Brightness.dark,
+        primaryColor: StyleColor.action,
+        scaffoldBackgroundColor: StyleColor.canvas,
+        barBackgroundColor: StyleColor.surface,
+      ),
 
       // Keep large accessibility text from breaking fixed-height rows and chips.
-      builder: (context, child) => MediaQuery.withClampedTextScaling(
-        maxScaleFactor: 1.3,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => Theme(
+        data: buildAppTheme(),
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.3,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
       locale: localization.locale,
       supportedLocales: localization.supportedLocales,

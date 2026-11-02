@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -27,18 +29,44 @@ class ProductCommentsScreen extends StatefulWidget {
 
 class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
   final _composer = TextEditingController();
-  late Future<ApiPage<PostComment>> _comments;
+  List<PostComment> _comments = const [];
+  bool _isLoading = true;
+  Object? _loadError;
+  int _loadGeneration = 0;
   PostComment? _replyTo;
   bool _sending = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    unawaited(_load());
   }
 
-  void _load() {
-    _comments = api.productPostComments(widget.postId, widget.productId);
+  Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
+    try {
+      final page = await api.productPostComments(
+        widget.postId,
+        widget.productId,
+      );
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _comments = page.items ?? const <PostComment>[];
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _sendComment() async {
@@ -56,8 +84,8 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
       _composer.clear();
       setState(() {
         _replyTo = null;
-        _load();
       });
+      await _load();
     } catch (error) {
       if (mounted) showError(context, error);
     } finally {
@@ -67,12 +95,13 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
 
   Widget _avatar(PostComment comment) {
     final avatar = comment.avatar;
-    final hasAvatar = avatar?.url.isNotEmpty == true;
+    final avatarUrl = avatar?.url;
+    final hasAvatar = avatarUrl?.isNotEmpty == true;
     return CircleAvatar(
       radius: 20,
       backgroundColor: StyleColor.canvas,
       backgroundImage: hasAvatar
-          ? NetworkImage(api.resolveUrl(avatar!.url))
+          ? NetworkImage(api.resolveUrl(avatarUrl!))
           : null,
       onBackgroundImageError: hasAvatar ? (_, _) {} : null,
       child: hasAvatar
@@ -103,7 +132,7 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w400),
                       ),
                       const SizedBox(height: 4),
-                      Text(comment.content),
+                      Text(comment.content ?? ''),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
@@ -123,7 +152,7 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
             ),
           ),
         ),
-        if (comment.replies.isNotEmpty)
+        if (comment.replies?.isNotEmpty == true)
           Container(
             margin: const EdgeInsets.only(left: 16, top: 7),
             padding: const EdgeInsets.only(left: 10),
@@ -134,7 +163,11 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
                 ),
               ),
             ),
-            child: Column(children: comment.replies.map(_commentTile).toList()),
+            child: Column(
+              children: (comment.replies ?? const <PostComment>[])
+                  .map(_commentTile)
+                  .toList(),
+            ),
           ),
       ],
     ),
@@ -148,97 +181,87 @@ class _ProductCommentsScreenState extends State<ProductCommentsScreen> {
         showNotifications: false,
         showProfileAvatar: false,
       ).build(context),
-      body: FutureBuilder<ApiPage<PostComment>>(
-        future: _comments,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox.shrink();
-          }
-          if (snapshot.hasError) {
-            return ErrorRetryPanel(
-              error: snapshot.error!,
-              onRetry: () => setState(_load),
-            );
-          }
-          final comments = snapshot.data?.items ?? const <PostComment>[];
-          return Column(
-            children: [
-              Expanded(
-                child: comments.isEmpty
-                    ? EmptyState(
-                        title: 'comments.noCommentsTitle'.tr(),
-                        message: 'comments.noCommentsMessage'.tr(),
-                        icon: Icons.mode_comment_outlined,
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(
-                          14,
-                          14,
-                          14,
-                          StyleSpacing.bottomContentClearance,
+      body: Column(
+        children: [
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator.adaptive())
+                : _loadError != null
+                ? ErrorRetryPanel(
+                    error: _loadError!,
+                    onRetry: () => unawaited(_load()),
+                  )
+                : _comments.isEmpty
+                ? EmptyState(
+                    title: 'comments.noCommentsTitle'.tr(),
+                    message: 'comments.noCommentsMessage'.tr(),
+                    icon: Icons.mode_comment_outlined,
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      14,
+                      14,
+                      14,
+                      StyleSpacing.bottomContentClearance,
+                    ),
+                    children: _comments.map(_commentTile).toList(),
+                  ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+              child: Column(
+                children: [
+                  if (_replyTo != null)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'comments.replyingTo'.tr(
+                              namedArgs: {'name': _replyTo!.displayName},
+                            ),
+                            style: const TextStyle(color: StyleColor.muted),
+                          ),
                         ),
-                        children: comments.map(_commentTile).toList(),
-                      ),
-              ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-                  child: Column(
+                        IconButton(
+                          onPressed: () => setState(() => _replyTo = null),
+                          tooltip: 'comments.cancelReply'.tr(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  Row(
                     children: [
-                      if (_replyTo != null)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'comments.replyingTo'.tr(
-                                  namedArgs: {'name': _replyTo!.displayName},
-                                ),
-                                style: const TextStyle(color: StyleColor.muted),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => setState(() => _replyTo = null),
-                              tooltip: 'comments.cancelReply'.tr(),
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                          ],
+                      Expanded(
+                        child: MKTextFormField(
+                          controller: _composer,
+                          minLines: 1,
+                          maxLines: 3,
+                          textInputAction: TextInputAction.send,
+                          onFieldSubmitted: (_) => _sendComment(),
+                          decoration: InputDecoration(
+                            hintText: _replyTo == null
+                                ? 'comments.addComment'.tr()
+                                : 'comments.replyTo'.tr(
+                                    namedArgs: {'name': _replyTo!.displayName},
+                                  ),
+                          ),
                         ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: MKTextFormField(
-                              controller: _composer,
-                              minLines: 1,
-                              maxLines: 3,
-                              textInputAction: TextInputAction.send,
-                              onFieldSubmitted: (_) => _sendComment(),
-                              decoration: InputDecoration(
-                                hintText: _replyTo == null
-                                    ? 'comments.addComment'.tr()
-                                    : 'comments.replyTo'.tr(
-                                        namedArgs: {
-                                          'name': _replyTo!.displayName,
-                                        },
-                                      ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton.filled(
-                            onPressed: _sending ? null : _sendComment,
-                            tooltip: 'comments.postComment'.tr(),
-                            icon: const Icon(Icons.send_rounded),
-                          ),
-                        ],
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        onPressed: _sending ? null : _sendComment,
+                        tooltip: 'comments.postComment'.tr(),
+                        icon: const Icon(Icons.send_rounded),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     ),
   );

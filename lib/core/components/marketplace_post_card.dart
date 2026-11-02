@@ -32,10 +32,12 @@ class MarketplacePostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = post.products.map((product) => (post, product)).toList();
+    final items = (post.products ?? const <Product>[])
+        .map((product) => (post, product))
+        .toList();
     final sellerId = post.userId;
     return ColoredBox(
-      color: Colors.white,
+      color: StyleColor.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -45,14 +47,15 @@ class MarketplacePostCard extends StatelessWidget {
               builder: (context) {
                 final seller = post.seller;
                 final avatar = seller?.avatar;
-                final hasAvatar = avatar?.url.isNotEmpty == true;
+                final avatarUrl = avatar?.url;
+                final hasAvatar = avatarUrl?.isNotEmpty == true;
                 return Row(
                   children: [
                     CircleAvatar(
                       radius: 22,
                       backgroundColor: StyleColor.canvas,
                       backgroundImage: hasAvatar
-                          ? NetworkImage(api.resolveUrl(avatar!.url))
+                          ? NetworkImage(api.resolveUrl(avatarUrl!))
                           : null,
                       onBackgroundImageError: hasAvatar ? (_, _) {} : null,
                       child: hasAvatar
@@ -94,7 +97,7 @@ class MarketplacePostCard extends StatelessWidget {
               },
             ),
           ),
-          if (post.isRemoved)
+          if (post.isRemoved == true)
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
               child: Container(
@@ -178,9 +181,8 @@ class MarketplacePostCard extends StatelessWidget {
                                         : 'postCard.saveItem'.tr(),
                                     style: IconButton.styleFrom(
                                       iconSize: StyleColor.iconSize,
-                                      backgroundColor: Colors.white.withValues(
-                                        alpha: .94,
-                                      ),
+                                      backgroundColor: StyleColor.surface
+                                          .withValues(alpha: .94),
                                     ),
                                     icon: Icon(
                                       isSaved(product)
@@ -204,7 +206,7 @@ class MarketplacePostCard extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      product.title,
+                                      product.title ?? '',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -214,7 +216,7 @@ class MarketplacePostCard extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      '\$${product.price.toStringAsFixed(2)}',
+                                      '\$${(product.price ?? 0).toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         fontSize: StyleFont.mediumSize,
                                         color: StyleColor.ink,

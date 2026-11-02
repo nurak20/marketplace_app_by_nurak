@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -23,20 +25,44 @@ class ReviewScreen extends StatefulWidget {
 
 class _ReviewScreenState extends State<ReviewScreen> {
   final _comment = TextEditingController();
-  late Future<Product> _product;
+  Product? _product;
+  bool _isLoading = true;
+  Object? _loadError;
+  int _loadGeneration = 0;
   int _rating = 5;
   bool _busy = false;
   @override
   void initState() {
     super.initState();
-    _load();
+    unawaited(_load());
   }
 
-  void _load() {
-    _product = api.product(widget.productId);
+  Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
+    try {
+      final product = await api.product(widget.productId);
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _product = product;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _submit() async {
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       await api.addReview(widget.productId, _rating, _comment.text.trim());
@@ -48,6 +74,79 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
   }
 
+  Widget _reviewForm(Product product) => ListView(
+    padding: const EdgeInsets.all(18),
+    children: [
+      Card(
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(10),
+          leading: SizedBox(
+            width: 64,
+            height: 64,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: ProductArtwork(
+                category: product.category,
+                height: 64,
+                image: product.primaryImage,
+              ),
+            ),
+          ),
+          title: Text(
+            product.title ?? '',
+            style: const TextStyle(fontWeight: FontWeight.w400),
+          ),
+          subtitle: Text(
+            'reviews.soldBy'.tr(namedArgs: {'id': '${product.sellerId}'}),
+          ),
+        ),
+      ),
+      const SizedBox(height: 24),
+      Text(
+        'reviews.yourRating'.tr(),
+        style: const TextStyle(
+          fontWeight: FontWeight.w400,
+          fontSize: StyleFont.mediumSize,
+        ),
+      ),
+      const SizedBox(height: 10),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(5, (index) {
+          final value = index + 1;
+          return IconButton(
+            onPressed: () => setState(() => _rating = value),
+            tooltip: 'reviews.starsTooltip'.tr(namedArgs: {'count': '$value'}),
+            iconSize: StyleColor.iconSize,
+            color: StyleColor.accent,
+            icon: Icon(
+              value <= _rating
+                  ? Icons.star_rounded
+                  : Icons.star_outline_rounded,
+            ),
+          );
+        }),
+      ),
+      const SizedBox(height: 12),
+      MKTextFormField(
+        controller: _comment,
+        minLines: 3,
+        maxLines: 6,
+        decoration: InputDecoration(
+          labelText: 'reviews.commentOptional'.tr(),
+          alignLabelWithHint: true,
+        ),
+      ),
+      const SizedBox(height: 22),
+      PrimaryButton(
+        label: 'reviews.submitReview'.tr(),
+        busy: _busy,
+        onPressed: _submit,
+      ),
+      const SizedBox(height: StyleSpacing.bottomContentClearance),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) => LocalizedBuilder(
     builder: (context) => Scaffold(
@@ -56,94 +155,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
         showNotifications: false,
         showProfileAvatar: false,
       ).build(context),
-      body: FutureBuilder<Product>(
-        future: _product,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox.shrink();
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text(Api.errorMessage(snapshot.error!)));
-          }
-          final product = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.all(18),
-            children: [
-              Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(10),
-                  leading: SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: ProductArtwork(
-                        category: product.category,
-                        height: 64,
-                        image: product.primaryImage,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    product.title,
-                    style: const TextStyle(fontWeight: FontWeight.w400),
-                  ),
-                  subtitle: Text(
-                    'reviews.soldBy'.tr(
-                      namedArgs: {'id': '${product.sellerId}'},
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'reviews.yourRating'.tr(),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w400,
-                  fontSize: StyleFont.mediumSize,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final value = index + 1;
-                  return IconButton(
-                    onPressed: () => setState(() => _rating = value),
-                    tooltip: 'reviews.starsTooltip'.tr(
-                      namedArgs: {'count': '$value'},
-                    ),
-                    iconSize: StyleColor.iconSize,
-                    color: StyleColor.accent,
-                    icon: Icon(
-                      value <= _rating
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 12),
-              MKTextFormField(
-                controller: _comment,
-                minLines: 3,
-                maxLines: 6,
-                decoration: InputDecoration(
-                  labelText: 'reviews.commentOptional'.tr(),
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 22),
-              PrimaryButton(
-                label: 'reviews.submitReview'.tr(),
-                busy: _busy,
-                onPressed: _submit,
-              ),
-              const SizedBox(height: StyleSpacing.bottomContentClearance),
-            ],
-          );
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator.adaptive())
+          : _loadError != null
+          ? ErrorRetryPanel(
+              error: _loadError!,
+              onRetry: () => unawaited(_load()),
+            )
+          : _reviewForm(_product!),
     ),
   );
 
@@ -163,16 +182,39 @@ class ProductReviewsScreen extends StatefulWidget {
 }
 
 class _ProductReviewsScreenState extends State<ProductReviewsScreen> {
-  late Future<ApiPage<Review>> _reviews;
+  List<Review> _reviews = const [];
+  bool _isLoading = true;
+  Object? _loadError;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    unawaited(_load());
   }
 
-  void _load() {
-    _reviews = api.reviews(widget.productId);
+  Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
+    try {
+      final page = await api.reviews(widget.productId);
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _reviews = page.items ?? const <Review>[];
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -186,79 +228,71 @@ class _ProductReviewsScreenState extends State<ProductReviewsScreen> {
       body: Column(
         children: [
           Expanded(
-            child: FutureBuilder<ApiPage<Review>>(
-              future: _reviews,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox.shrink();
-                }
-                if (snapshot.hasError) {
-                  return ErrorRetryPanel(
-                    error: snapshot.error!,
-                    onRetry: () => setState(_load),
-                  );
-                }
-                final reviews = snapshot.data?.items ?? const <Review>[];
-                if (reviews.isEmpty) {
-                  return EmptyState(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator.adaptive())
+                : _loadError != null
+                ? ErrorRetryPanel(
+                    error: _loadError!,
+                    onRetry: () => unawaited(_load()),
+                  )
+                : _reviews.isEmpty
+                ? EmptyState(
                     title: 'reviews.noReviews'.tr(),
                     message: 'reviews.noReviewsMessage'.tr(),
                     icon: Icons.star_outline_rounded,
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  itemCount: reviews.length + 1,
-                  separatorBuilder: (_, _) => const SizedBox(height: 9),
-                  itemBuilder: (context, index) {
-                    if (index == reviews.length) {
-                      return const SizedBox(
-                        height: StyleSpacing.bottomContentClearance,
-                      );
-                    }
-                    final review = reviews[index];
-                    return Card(
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                ...List.generate(
-                                  5,
-                                  (star) => Icon(
-                                    star < review.rating
-                                        ? Icons.star_rounded
-                                        : Icons.star_outline_rounded,
-                                    size: StyleColor.iconSize,
-                                    color: StyleColor.accent,
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                    itemCount: _reviews.length + 1,
+                    separatorBuilder: (_, _) => const SizedBox(height: 9),
+                    itemBuilder: (context, index) {
+                      if (index == _reviews.length) {
+                        return const SizedBox(
+                          height: StyleSpacing.bottomContentClearance,
+                        );
+                      }
+                      final review = _reviews[index];
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  ...List.generate(
+                                    5,
+                                    (star) => Icon(
+                                      star < (review.rating ?? 0)
+                                          ? Icons.star_rounded
+                                          : Icons.star_outline_rounded,
+                                      size: StyleColor.iconSize,
+                                      color: StyleColor.accent,
+                                    ),
                                   ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  'reviews.buyer'.tr(
-                                    namedArgs: {'id': '${review.buyerId}'},
+                                  const Spacer(),
+                                  Text(
+                                    'reviews.buyer'.tr(
+                                      namedArgs: {'id': '${review.buyerId}'},
+                                    ),
+                                    style: const TextStyle(
+                                      color: StyleColor.muted,
+                                    ),
                                   ),
-                                  style: const TextStyle(
-                                    color: StyleColor.muted,
-                                  ),
-                                ),
+                                ],
+                              ),
+                              if (review.comment?.trim().isNotEmpty ==
+                                  true) ...[
+                                const SizedBox(height: 7),
+                                Text(review.comment!),
                               ],
-                            ),
-                            if (review.comment?.trim().isNotEmpty == true) ...[
-                              const SizedBox(height: 7),
-                              Text(review.comment!),
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

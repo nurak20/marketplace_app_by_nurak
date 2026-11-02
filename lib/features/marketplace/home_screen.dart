@@ -11,16 +11,11 @@ import '../../core/api.dart';
 import '../../core/app_theme.dart';
 import '../../core/components/empty_state.dart';
 import '../../core/components/error_retry_panel.dart';
-import '../../core/components/localized_builder.dart';
-import '../../core/components/marketplace_app_bar.dart';
 import '../../core/components/marketplace_post_card.dart';
 import '../../core/components/show_error.dart';
 import '../../core/l10n_labels.dart';
 import '../../core/models.dart';
 import 'marketplace_options.dart';
-
-// Move this into StyleColor if you prefer (e.g. StyleColor.darkGreen).
-const _darkGreen = Color(0xFF0B5D3B);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,11 +25,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _category = 'All';
-  late Future<ApiPage<MarketplacePost>> _posts;
+  List<MarketplacePost> _posts = const [];
+  bool _isLoading = true;
+  Object? _loadError;
+  int _loadGeneration = 0;
   final Map<int, bool> _savedOverrides = {};
-  final Set<(int, int)> _likingIds = {};
-  final Map<(int, int), bool> _likedOverrides = {};
-  final Map<(int, int), int> _likeCountOverrides = {};
+  final Set<(int?, int?)> _likingIds = {};
+  final Map<(int?, int?), bool> _likedOverrides = {};
+  final Map<(int?, int?), int> _likeCountOverrides = {};
   int? _savingId;
 
   List<MarketplaceCategory> get _categoryItems {
@@ -47,52 +45,56 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPosts();
+    unawaited(_loadPosts());
   }
 
-  void _loadPosts() {
+  Future<void> _loadPosts() async {
+    final generation = ++_loadGeneration;
     _savedOverrides.clear();
     _likedOverrides.clear();
     _likeCountOverrides.clear();
-    _posts = api.posts();
-    unawaited(_refreshCategoryItems(_posts));
-  }
-
-  Future<void> _refreshCategoryItems(
-    Future<ApiPage<MarketplacePost>> request,
-  ) async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
     try {
-      await request;
-      if (mounted) setState(() {});
-    } catch (_) {
-      // The page's FutureBuilder renders the request error.
+      final page = await api.posts();
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _posts = page.items ?? const <MarketplacePost>[];
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
     }
   }
 
-  Future<void> _refresh() async {
-    setState(() {
-      _loadPosts();
-    });
-    await _posts;
-  }
+  Future<void> _refresh() => _loadPosts();
 
   Future<void> _toggleSaved(Product product) async {
-    if (_savingId != null) return;
-    final wasSaved = _savedOverrides[product.id] ?? product.isSaved;
+    final productId = product.id;
+    if (_savingId != null || productId == null) return;
+    final wasSaved = _savedOverrides[productId] ?? product.isSaved == true;
     setState(() {
-      _savingId = product.id;
-      _savedOverrides[product.id] = !wasSaved;
+      _savingId = productId;
+      _savedOverrides[productId] = !wasSaved;
     });
     try {
       if (wasSaved) {
-        await api.removeSavedProduct(product.id);
+        await api.removeSavedProduct(productId);
       } else {
-        await api.saveProduct(product.id);
+        await api.saveProduct(productId);
       }
     } catch (error) {
       if (mounted) {
         setState(() {
-          _savedOverrides[product.id] = wasSaved;
+          _savedOverrides[productId] = wasSaved;
         });
         showError(context, error);
       }
@@ -102,11 +104,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _toggleLike(MarketplacePost post, Product product) async {
-    final key = (post.id, product.id);
+    final postId = post.id;
+    final productId = product.id;
+    if (postId == null || productId == null) return;
+    final key = (postId, productId);
     if (_likingIds.contains(key)) return;
     final engagement = post.engagementFor(product);
-    final wasLiked = _likedOverrides[key] ?? engagement.hasReacted;
-    final count = _likeCountOverrides[key] ?? engagement.reactionCount;
+    final wasLiked = _likedOverrides[key] ?? engagement.hasReacted == true;
+    final count = _likeCountOverrides[key] ?? engagement.reactionCount ?? 0;
     setState(() {
       _likingIds.add(key);
       _likedOverrides[key] = !wasLiked;
@@ -114,9 +119,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       if (wasLiked) {
-        await api.unreactToPostProduct(post.id, product.id);
+        await api.unreactToPostProduct(postId, productId);
       } else {
-        await api.reactToPostProduct(post.id, product.id);
+        await api.reactToPostProduct(postId, productId);
       }
     } catch (error) {
       if (mounted) {
@@ -132,27 +137,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openProduct(MarketplacePost post, Product product) async {
-    await context.push('/products/${product.id}?postId=${post.id}');
-    if (mounted) {
-      setState(() {
-        _loadPosts();
-      });
-    }
+    final productId = product.id;
+    if (productId == null) return;
+    await context.push('/products/$productId?postId=${post.id ?? ''}');
+    if (mounted) await _loadPosts();
   }
 
   Future<void> _openComments(MarketplacePost post, Product product) async {
-    await context.push('/posts/${post.id}/products/${product.id}/comments');
-    if (mounted) {
-      setState(() {
-        _loadPosts();
-      });
-    }
+    final postId = post.id;
+    final productId = product.id;
+    if (postId == null || productId == null) return;
+    await context.push('/posts/$postId/products/$productId/comments');
+    if (mounted) await _loadPosts();
   }
 
   List<MarketplacePost> _filterPosts(List<MarketplacePost> posts) {
     return posts
         .map((post) {
-          final products = post.products.where((product) {
+          final products = (post.products ?? const <Product>[]).where((
+            product,
+          ) {
             if (product.status == 'SOLD') return false;
             if (_category != 'All' && product.category != _category) {
               return false;
@@ -161,13 +165,16 @@ class _HomeScreenState extends State<HomeScreen> {
           }).toList();
           return post.withProducts(products);
         })
-        .where((post) => post.isRemoved || post.products.isNotEmpty)
+        .where(
+          (post) =>
+              post.isRemoved == true || (post.products?.isNotEmpty ?? false),
+        )
         .toList();
   }
 
   Widget _categoryTile(MarketplaceCategory item) {
     final selected = _category == item.name;
-    final color = selected ? _darkGreen : StyleColor.ink;
+    final color = selected ? StyleColor.action : StyleColor.ink;
     final label = categoryLabel(item.name);
 
     return Semantics(
@@ -175,11 +182,11 @@ class _HomeScreenState extends State<HomeScreen> {
       selected: selected,
       label: label,
       child: Material(
-        color: Colors.white,
+        color: StyleColor.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
           side: selected
-              ? const BorderSide(color: _darkGreen, width: 0.5)
+              ? const BorderSide(color: StyleColor.action, width: 0.75)
               : BorderSide.none,
         ),
         clipBehavior: Clip.antiAlias,
@@ -230,59 +237,61 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        FutureBuilder<ApiPage<MarketplacePost>>(
-          future: _posts,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox.shrink();
-            }
-            if (snapshot.hasError) {
-              return ErrorRetryPanel(error: snapshot.error!, onRetry: _refresh);
-            }
-            final posts = _filterPosts(snapshot.data?.items ?? const []);
-            if (posts.isEmpty) {
-              return SizedBox(
-                height: 260,
-                child: EmptyState(
-                  title: 'home.noListingsTitle'.tr(),
-                  message: 'home.noListingsMessage'.tr(),
-                  icon: Icons.storefront_outlined,
-                ),
-              );
-            }
-            return Column(
-              children: [
-                const SizedBox(height: 8),
-                ...posts.map(
-                  (e) => MarketplacePostCard(
-                    key: ValueKey(e.id),
-                    post: e,
-                    isLiked: (post, product) =>
-                        _likedOverrides[(post.id, product.id)] ??
-                        post.engagementFor(product).hasReacted,
-                    likeCount: (post, product) =>
-                        _likeCountOverrides[(post.id, product.id)] ??
-                        post.engagementFor(product).reactionCount,
-                    isLiking: (post, product) =>
-                        _likingIds.contains((post.id, product.id)),
-                    onLike: _toggleLike,
-                    onComment: _openComments,
-                    isSaved: (product) =>
-                        _savedOverrides[product.id] ?? product.isSaved,
-                    onSave: _toggleSaved,
-                    onProductTap: _openProduct,
-                  ),
-                ),
-              ],
-            );
-          },
+        if (_isLoading)
+          const SizedBox(
+            height: 260,
+            child: Center(child: CircularProgressIndicator.adaptive()),
+          )
+        else if (_loadError != null)
+          ErrorRetryPanel(error: _loadError!, onRetry: _refresh)
+        else
+          _postList(),
+      ],
+    );
+  }
+
+  Widget _postList() {
+    final posts = _filterPosts(_posts);
+    if (posts.isEmpty) {
+      return SizedBox(
+        height: 260,
+        child: EmptyState(
+          title: 'home.noListingsTitle'.tr(),
+          message: 'home.noListingsMessage'.tr(),
+          icon: Icons.storefront_outlined,
+        ),
+      );
+    }
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        ...posts.map(
+          (post) => MarketplacePostCard(
+            key: ValueKey(post.id),
+            post: post,
+            isLiked: (currentPost, product) =>
+                _likedOverrides[(currentPost.id, product.id)] ??
+                currentPost.engagementFor(product).hasReacted == true,
+            likeCount: (currentPost, product) =>
+                _likeCountOverrides[(currentPost.id, product.id)] ??
+                currentPost.engagementFor(product).reactionCount ??
+                0,
+            isLiking: (currentPost, product) =>
+                _likingIds.contains((currentPost.id, product.id)),
+            onLike: _toggleLike,
+            onComment: _openComments,
+            isSaved: (product) =>
+                _savedOverrides[product.id] ?? product.isSaved == true,
+            onSave: _toggleSaved,
+            onProductTap: _openProduct,
+          ),
         ),
       ],
     );
   }
 
   String get _title => switch (_selectedIndex) {
-    0 => 'mk27 Management System',
+    0 => 'Shopping',
     1 => 'nav.message'.tr(),
     2 => 'nav.create'.tr(),
     _ => 'nav.user'.tr(),
@@ -312,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     ),
     body: Material(
-      color: Colors.white,
+      color: StyleColor.surface,
       child: ListView(
         children: [
           SizedBox(

@@ -80,7 +80,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
         query: _employeeQuery,
       );
       if (!mounted) return;
-      setState(() => _employees = page.items);
+      setState(() => _employees = page.items ?? []);
     } catch (error) {
       if (!mounted) return;
       setState(() => _employeesError = error);
@@ -97,7 +97,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
     try {
       final page = await api.payrollRuns();
       if (!mounted) return;
-      setState(() => _runs = page.items);
+      setState(() => _runs = page.items ?? []);
     } catch (error) {
       if (!mounted) return;
       setState(() => _runsError = error);
@@ -828,57 +828,61 @@ class _PayrollScreenState extends State<PayrollScreen> {
     );
   }
 
-  List<Widget> _runActionButtons(PayrollRun run) => [
-    if (run.isDraft && _canManage)
-      OutlinedButton.icon(
-        onPressed: () => _runAction(
-          title: 'payroll.regenerateTitle'.tr(),
-          message: 'payroll.regenerateMessage'.tr(),
-          confirmLabel: 'payroll.regenerate'.tr(),
-          action: () => api.regeneratePayrollRun(run.id),
-          successMessage: 'payroll.regenerateSuccess'.tr(),
-          reloadPayslips: true,
+  List<Widget> _runActionButtons(PayrollRun run) {
+    final runId = run.id;
+    if (runId == null) return const [];
+    return [
+      if (run.isDraft && _canManage)
+        OutlinedButton.icon(
+          onPressed: () => _runAction(
+            title: 'payroll.regenerateTitle'.tr(),
+            message: 'payroll.regenerateMessage'.tr(),
+            confirmLabel: 'payroll.regenerate'.tr(),
+            action: () => api.regeneratePayrollRun(runId),
+            successMessage: 'payroll.regenerateSuccess'.tr(),
+            reloadPayslips: true,
+          ),
+          icon: const Icon(Icons.refresh_rounded),
+          label: Text('payroll.regenerate'.tr()),
         ),
-        icon: const Icon(Icons.refresh_rounded),
-        label: Text('payroll.regenerate'.tr()),
-      ),
-    if (run.isDraft && _canManage)
-      OutlinedButton.icon(
-        onPressed: () => _runAction(
-          title: 'payroll.cancelRunTitle'.tr(),
-          message: 'payroll.cancelRunMessage'.tr(),
-          confirmLabel: 'payroll.cancelRun'.tr(),
-          action: () => api.cancelPayrollRun(run.id),
-          successMessage: 'payroll.cancelRunSuccess'.tr(),
+      if (run.isDraft && _canManage)
+        OutlinedButton.icon(
+          onPressed: () => _runAction(
+            title: 'payroll.cancelRunTitle'.tr(),
+            message: 'payroll.cancelRunMessage'.tr(),
+            confirmLabel: 'payroll.cancelRun'.tr(),
+            action: () => api.cancelPayrollRun(runId),
+            successMessage: 'payroll.cancelRunSuccess'.tr(),
+          ),
+          icon: const Icon(Icons.cancel_outlined),
+          label: Text('payroll.cancelRun'.tr()),
         ),
-        icon: const Icon(Icons.cancel_outlined),
-        label: Text('payroll.cancelRun'.tr()),
-      ),
-    if (run.isDraft && _canApprove)
-      FilledButton.icon(
-        onPressed: () => _runAction(
-          title: 'payroll.approveTitle'.tr(),
-          message: 'payroll.approveMessage'.tr(),
-          confirmLabel: 'payroll.approve'.tr(),
-          action: () => api.approvePayrollRun(run.id),
-          successMessage: 'payroll.approveSuccess'.tr(),
+      if (run.isDraft && _canApprove)
+        FilledButton.icon(
+          onPressed: () => _runAction(
+            title: 'payroll.approveTitle'.tr(),
+            message: 'payroll.approveMessage'.tr(),
+            confirmLabel: 'payroll.approve'.tr(),
+            action: () => api.approvePayrollRun(runId),
+            successMessage: 'payroll.approveSuccess'.tr(),
+          ),
+          icon: const Icon(Icons.verified_outlined),
+          label: Text('payroll.approve'.tr()),
         ),
-        icon: const Icon(Icons.verified_outlined),
-        label: Text('payroll.approve'.tr()),
-      ),
-    if (run.isApproved && _canApprove)
-      FilledButton.icon(
-        onPressed: () => _runAction(
-          title: 'payroll.markPaidTitle'.tr(),
-          message: 'payroll.markPaidMessage'.tr(),
-          confirmLabel: 'payroll.markPaid'.tr(),
-          action: () => api.payPayrollRun(run.id),
-          successMessage: 'payroll.markPaidSuccess'.tr(),
+      if (run.isApproved && _canApprove)
+        FilledButton.icon(
+          onPressed: () => _runAction(
+            title: 'payroll.markPaidTitle'.tr(),
+            message: 'payroll.markPaidMessage'.tr(),
+            confirmLabel: 'payroll.markPaid'.tr(),
+            action: () => api.payPayrollRun(runId),
+            successMessage: 'payroll.markPaidSuccess'.tr(),
+          ),
+          icon: const Icon(Icons.price_check_rounded),
+          label: Text('payroll.markPaid'.tr()),
         ),
-        icon: const Icon(Icons.price_check_rounded),
-        label: Text('payroll.markPaid'.tr()),
-      ),
-  ];
+    ];
+  }
 
   Future<void> _runAction({
     required String title,
@@ -912,7 +916,8 @@ class _PayrollScreenState extends State<PayrollScreen> {
     }
   }
 
-  Future<void> _openRun(int runId) async {
+  Future<void> _openRun(int? runId) async {
+    if (runId == null) return;
     PayrollRun? existing;
     for (final run in _runs) {
       if (run.id == runId) {
@@ -932,7 +937,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
       if (!mounted) return;
       setState(() {
         _selectedRun = run;
-        _payslips = page.items;
+        _payslips = page.items ?? [];
         _storeRun(run);
       });
     } catch (error) {
@@ -956,10 +961,11 @@ class _PayrollScreenState extends State<PayrollScreen> {
     List<Account> candidates;
     try {
       final page = await api.managementUsers();
-      candidates = page.items
+      candidates = (page.items ?? const <Account>[])
           .where(
             (account) =>
-                account.active && !enrolled.contains(account.profile.id),
+                account.active == true &&
+                !enrolled.contains(account.profile?.id),
           )
           .toList();
     } catch (error) {
@@ -986,8 +992,10 @@ class _PayrollScreenState extends State<PayrollScreen> {
     List<Account>? candidates,
   }) async {
     final isEdit = employee != null;
+    final employeeUserId = employee?.userId;
+    if (isEdit && employeeUserId == null) return null;
     final formKey = GlobalKey<FormState>();
-    var selectedUserId = employee?.userId ?? candidates!.first.profile.id;
+    var selectedUserId = employeeUserId ?? candidates?.first.profile?.id;
     final code = TextEditingController(text: employee?.employeeCode ?? '');
     final jobTitle = TextEditingController(text: employee?.jobTitle ?? '');
     final department = TextEditingController(text: employee?.department ?? '');
@@ -1053,16 +1061,17 @@ class _PayrollScreenState extends State<PayrollScreen> {
                 labelText: 'payroll.field.account'.tr(),
               ),
               items: [
-                for (final account in candidates!)
-                  DropdownMenuItem(
-                    value: account.profile.id,
-                    child: Text(
-                      '${account.profile.displayName} · '
-                      '${account.email ?? account.profile.username}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                for (final account in candidates ?? const <Account>[])
+                  if (account.profile?.id case final profileId?)
+                    DropdownMenuItem(
+                      value: profileId,
+                      child: Text(
+                        '${account.profile?.displayName} · '
+                        '${account.email ?? account.profile?.username ?? ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
               ],
               onChanged: (value) {
                 if (value != null) selectedUserId = value;
@@ -1174,7 +1183,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
           'bankAccount': bankAccount.text.trim(),
         };
         return isEdit
-            ? api.updatePayrollEmployee(employee.userId, body)
+            ? api.updatePayrollEmployee(employeeUserId!, body)
             : api.enrollPayrollEmployee(body);
       },
     );
@@ -1184,7 +1193,8 @@ class _PayrollScreenState extends State<PayrollScreen> {
     EmployeeProfile employee,
     String status,
   ) async {
-    if (status == employee.status) return;
+    final userId = employee.userId;
+    if (userId == null || status == employee.status) return;
     if (status == 'TERMINATED') {
       final confirmed = await GlobalPopupDialog.yesNoPrompt(
         context,
@@ -1198,10 +1208,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
       if (confirmed != true || !mounted) return;
     }
     try {
-      final updated = await api.setPayrollEmployeeStatus(
-        employee.userId,
-        status,
-      );
+      final updated = await api.setPayrollEmployeeStatus(userId, status);
       if (!mounted) return;
       setState(() => _storeEmployee(updated));
     } catch (error) {
@@ -1310,7 +1317,10 @@ class _PayrollScreenState extends State<PayrollScreen> {
 
   Future<void> _editPayslip(Payslip payslip) async {
     final run = _selectedRun;
-    if (run == null || !run.isDraft || !_canManage) return;
+    final payslipId = payslip.id;
+    if (run == null || payslipId == null || !run.isDraft || !_canManage) {
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     final bonus = TextEditingController(text: payrollAmountText(payslip.bonus));
     final overtime = TextEditingController(
@@ -1420,11 +1430,14 @@ class _PayrollScreenState extends State<PayrollScreen> {
         final taxValue = payrollParseAmount(tax.text) ?? 0;
         final otherValue = payrollParseAmount(other.text) ?? 0;
         final gross =
-            payslip.baseSalary + payslip.allowance + bonusValue + overtimeValue;
+            (payslip.baseSalary ?? 0) +
+            (payslip.allowance ?? 0) +
+            bonusValue +
+            overtimeValue;
         if (taxValue + otherValue > gross) {
           throw PayrollMessage('payroll.error.deductionsExceed'.tr());
         }
-        return api.updatePayrollPayslip(payslip.id, {
+        return api.updatePayrollPayslip(payslipId, {
           'bonus': bonusValue,
           'overtime': overtimeValue,
           'tax': taxValue,
@@ -1445,9 +1458,10 @@ class _PayrollScreenState extends State<PayrollScreen> {
 
   Future<void> _refreshRunTotals() async {
     final run = _selectedRun;
-    if (run == null) return;
+    final runId = run?.id;
+    if (runId == null) return;
     try {
-      final updated = await api.payrollRun(run.id);
+      final updated = await api.payrollRun(runId);
       if (!mounted) return;
       setState(() {
         _selectedRun = updated;

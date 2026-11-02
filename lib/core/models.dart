@@ -1,20 +1,39 @@
 typedef JsonMap = Map<String, dynamic>;
 
-int _int(Object? value) =>
-    value is num ? value.toInt() : int.tryParse('$value') ?? 0;
-double _double(Object? value) =>
-    value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+int? _int(Object? value) => value == null
+    ? null
+    : value is num
+    ? value.toInt()
+    : int.tryParse('$value');
+double? _double(Object? value) => value == null
+    ? null
+    : value is num
+    ? value.toDouble()
+    : double.tryParse('$value');
 
 class ApiPage<T> {
-  const ApiPage({required this.items, this.page = 0, this.totalPages = 0});
-  final List<T> items;
-  final int page;
-  final int totalPages;
+  const ApiPage({
+    required this.items,
+    this.page = 0,
+    this.totalPages = 0,
+    this.size,
+    this.total,
+  });
+  final List<T>? items;
+  final int? page;
+  final int? totalPages;
+  final int? size;
+  final int? total;
 
-  ApiPage<T> withItems(List<T> value) =>
-      ApiPage<T>(items: value, page: page, totalPages: totalPages);
+  ApiPage<T> withItems(List<T> value) => ApiPage<T>(
+    items: value,
+    page: page,
+    totalPages: totalPages,
+    size: size,
+    total: total,
+  );
 
-  factory ApiPage.fromJson(JsonMap json, T Function(JsonMap) parse) {
+  static ApiPage<E> fromJson<E>(JsonMap json, E Function(JsonMap) parse) {
     var payload = json;
     while (payload['data'] is Map) {
       payload = Map<String, dynamic>.from(payload['data'] as Map);
@@ -26,7 +45,7 @@ class ApiPage<T> {
     final rawItems =
         payload['items'] ?? payload['content'] ?? payload['results'];
 
-    return ApiPage<T>(
+    return ApiPage<E>(
       items: (rawItems as List? ?? const [])
           .whereType<Map>()
           .map((item) => parse(Map<String, dynamic>.from(item)))
@@ -34,7 +53,13 @@ class ApiPage<T> {
       page: _int(
         payload['page'] ?? payload['number'] ?? pageable['pageNumber'],
       ),
-      totalPages: _int(payload['totalPages']),
+      totalPages: _int(
+        payload['pages'] ?? payload['totalPages'] ?? pageable['totalPages'],
+      ),
+      size: payload['size'] is num
+          ? _int(payload['size'])
+          : _int(payload['pageSize'] ?? pageable['pageSize']),
+      total: _int(payload['total'] ?? payload['totalElements']),
     );
   }
 }
@@ -61,38 +86,39 @@ class Product {
     this.comments = const [],
   });
 
-  final int id;
-  final int sellerId;
-  final String title;
-  final double price;
-  final String status;
+  final int? id;
+  final int? sellerId;
+  final String? title;
+  final double? price;
+  final String? status;
   final String? description;
   final String? category;
-  final String condition;
+  final String? condition;
   final String? location;
-  final List<MarketplaceImage> images;
+  final List<MarketplaceImage>? images;
   final UserProfile? seller;
-  final bool isSaved;
-  final int totalLike;
-  final int totalComment;
-  final bool hasLiked;
+  final bool? isSaved;
+  final int? totalLike;
+  final int? totalComment;
+  final bool? hasLiked;
   final UserProfile? postByUser;
-  final List<Review> reviews;
-  final List<PostComment> comments;
+  final List<Review>? reviews;
+  final List<PostComment>? comments;
 
   MarketplaceImage? get primaryImage {
-    for (final image in images) {
-      if (image.label.toLowerCase() == 'primary' && image.url.isNotEmpty) {
+    for (final image in images ?? const []) {
+      if (image.label?.toLowerCase() == 'primary' &&
+          image.url?.isNotEmpty == true) {
         return image;
       }
     }
-    for (final image in images) {
-      if (image.url.isNotEmpty) return image;
+    for (final image in images ?? const []) {
+      if (image.url?.isNotEmpty == true) return image;
     }
     return null;
   }
 
-  factory Product.fromJson(JsonMap json) {
+  static Product fromJson(JsonMap json) {
     final product = json['product'] is Map
         ? Map<String, dynamic>.from(json['product'] as Map)
         : json;
@@ -142,7 +168,7 @@ List<MarketplaceImage> _productImagesFromJson(JsonMap json) {
     images.insert(0, direct);
   }
   final primaryIndex = images.indexWhere(
-    (image) => image.label.toLowerCase() == 'primary',
+    (image) => image.label?.toLowerCase() == 'primary',
   );
   if (primaryIndex > 0) images.insert(0, images.removeAt(primaryIndex));
   return images;
@@ -155,11 +181,11 @@ class MarketplaceImage {
     required this.label,
   });
 
-  final String url;
-  final String type;
-  final String label;
+  final String? url;
+  final String? type;
+  final String? label;
 
-  factory MarketplaceImage.fromJson(JsonMap json) {
+  static MarketplaceImage fromJson(JsonMap json) {
     final url = '${json['url'] ?? json['imageUrl'] ?? ''}'.trim();
     return MarketplaceImage(
       url: url,
@@ -178,10 +204,12 @@ class MarketplaceImage {
   }) {
     if (value is Map) {
       final image = MarketplaceImage.fromJson(Map<String, dynamic>.from(value));
+      final imageType = image.type ?? '';
+      final imageUrl = image.url ?? '';
       return MarketplaceImage(
         url: image.url,
-        type: image.type.isNotEmpty ? image.type : _imageType(type, image.url),
-        label: image.label.isNotEmpty ? image.label : label,
+        type: imageType.isNotEmpty ? imageType : _imageType(type, imageUrl),
+        label: image.label?.isNotEmpty == true ? image.label : label,
       );
     }
     if (value is String && value.trim().isNotEmpty) {
@@ -211,7 +239,7 @@ class MarketplaceImage {
         if (items is Map) return fromResponse(items);
       }
       final image = tryParse(json);
-      if (image == null || image.url.isEmpty) return null;
+      if (image?.url?.isNotEmpty != true) return null;
       return image;
     }
     return tryParse(value);
@@ -227,7 +255,7 @@ class MarketplaceImage {
         if (json[key] != null) return listFromResponse(json[key]);
       }
       final image = fromResponse(json);
-      return image == null || image.url.isEmpty ? [] : [image];
+      return image?.url?.isNotEmpty == true ? [image!] : [];
     }
     return [];
   }
@@ -250,12 +278,12 @@ class Review {
     this.comment,
     this.buyerId = 0,
   });
-  final int id;
-  final int rating;
-  final int buyerId;
+  final int? id;
+  final int? rating;
+  final int? buyerId;
   final String? comment;
 
-  factory Review.fromJson(JsonMap json) => Review(
+  static Review fromJson(JsonMap json) => Review(
     id: _int(json['id']),
     rating: _int(json['rating']),
     buyerId: _int(json['buyerId']),
@@ -276,8 +304,8 @@ class UserProfile {
     this.email,
     this.phone,
   });
-  final int id;
-  final String username;
+  final int? id;
+  final String? username;
   final String? fullName;
   final String? firstName;
   final String? lastName;
@@ -312,11 +340,11 @@ class UserProfile {
       lastNameText,
     ].where((part) => part.isNotEmpty).join(' ');
     if (joined.isNotEmpty) return joined;
-    final handle = username.trim();
+    final handle = username?.trim() ?? '';
     return handle.isNotEmpty ? handle : 'Member #$id';
   }
 
-  factory UserProfile.fromJson(JsonMap json) {
+  static UserProfile fromJson(JsonMap json) {
     final nestedProfile = json['profile'] ?? json['user'];
     final profile = nestedProfile is Map
         ? Map<String, dynamic>.from(nestedProfile)
@@ -350,24 +378,28 @@ class Account {
     this.active = true,
     this.canSell = true,
   });
-  final UserProfile profile;
+  final UserProfile? profile;
   final String? email;
   final String? phone;
-  final List<String> roles;
-  final List<String> permissions;
-  final bool active;
-  final bool canSell;
+  final List<String>? roles;
+  final List<String>? permissions;
+  final bool? active;
+  final bool? canSell;
 
-  bool get canAccessManagement => permissions.contains('management:access');
-  bool get canManageUsers => permissions.contains('user:manage');
-  bool get canManageCategories => permissions.contains('category:manage');
-  bool get canManageConditions => permissions.contains('condition:manage');
-  bool get canModeratePosts => permissions.contains('post:moderate');
-  bool get canManageRoles => permissions.contains('admin:access');
-  bool get canAccessPayroll => permissions.contains('payroll:read');
-  bool get canManagePayroll => permissions.contains('payroll:manage');
-  bool get canApprovePayroll => permissions.contains('payroll:approve');
-  bool get canViewReports => permissions.contains('report:read');
+  bool get canAccessManagement =>
+      permissions?.contains('management:access') == true;
+  bool get canManageUsers => permissions?.contains('user:manage') == true;
+  bool get canManageCategories =>
+      permissions?.contains('category:manage') == true;
+  bool get canManageConditions =>
+      permissions?.contains('condition:manage') == true;
+  bool get canModeratePosts => permissions?.contains('post:moderate') == true;
+  bool get canManageRoles => permissions?.contains('admin:access') == true;
+  bool get canAccessPayroll => permissions?.contains('payroll:read') == true;
+  bool get canManagePayroll => permissions?.contains('payroll:manage') == true;
+  bool get canApprovePayroll =>
+      permissions?.contains('payroll:approve') == true;
+  bool get canViewReports => permissions?.contains('report:read') == true;
 
   Account copyWith({bool? active, bool? canSell}) => Account(
     profile: profile,
@@ -379,7 +411,7 @@ class Account {
     canSell: canSell ?? this.canSell,
   );
 
-  factory Account.fromJson(JsonMap json) => Account(
+  static Account fromJson(JsonMap json) => Account(
     profile: UserProfile.fromJson(
       Map<String, dynamic>.from(json['profile'] as Map? ?? const {}),
     ),
@@ -401,9 +433,9 @@ class ManagementCategory {
     required this.active,
   });
 
-  final int id;
-  final String name;
-  final bool active;
+  final int? id;
+  final String? name;
+  final bool? active;
 
   ManagementCategory copyWith({String? name, bool? active}) =>
       ManagementCategory(
@@ -412,7 +444,7 @@ class ManagementCategory {
         active: active ?? this.active,
       );
 
-  factory ManagementCategory.fromJson(JsonMap json) => ManagementCategory(
+  static ManagementCategory fromJson(JsonMap json) => ManagementCategory(
     id: _int(json['id']),
     name: '${json['name'] ?? ''}',
     active: json['active'] != false,
@@ -425,10 +457,10 @@ class MarketplaceOptions {
     required this.conditions,
   });
 
-  final List<String> categories;
-  final List<String> conditions;
+  final List<String>? categories;
+  final List<String>? conditions;
 
-  factory MarketplaceOptions.fromJson(JsonMap json) => MarketplaceOptions(
+  static MarketplaceOptions fromJson(JsonMap json) => MarketplaceOptions(
     categories: (json['categories'] as List? ?? const [])
         .map((value) => '$value')
         .toList(),
@@ -441,8 +473,8 @@ class MarketplaceOptions {
 class ManagementCondition {
   const ManagementCondition({required this.code, required this.active});
 
-  final String code;
-  final bool active;
+  final String? code;
+  final bool? active;
 
   ManagementCondition copyWith({String? code, bool? active}) =>
       ManagementCondition(
@@ -450,7 +482,7 @@ class ManagementCondition {
         active: active ?? this.active,
       );
 
-  factory ManagementCondition.fromJson(JsonMap json) => ManagementCondition(
+  static ManagementCondition fromJson(JsonMap json) => ManagementCondition(
     code: '${json['code'] ?? ''}',
     active: json['active'] != false,
   );
@@ -465,10 +497,10 @@ class ManagementPost {
     this.createdAt,
   });
 
-  final int id;
-  final int userId;
-  final String content;
-  final bool removed;
+  final int? id;
+  final int? userId;
+  final String? content;
+  final bool? removed;
   final DateTime? createdAt;
 
   ManagementPost copyWith({bool? removed}) => ManagementPost(
@@ -479,7 +511,7 @@ class ManagementPost {
     createdAt: createdAt,
   );
 
-  factory ManagementPost.fromJson(JsonMap json) => ManagementPost(
+  static ManagementPost fromJson(JsonMap json) => ManagementPost(
     id: _int(json['id']),
     userId: _int(json['userId']),
     content: '${json['content'] ?? ''}',
@@ -502,19 +534,19 @@ class MarketplaceMessage {
     this.receiver,
     this.product,
   });
-  final int id;
-  final int senderId;
-  final int receiverId;
+  final int? id;
+  final int? senderId;
+  final int? receiverId;
   final int? productId;
-  final String content;
-  final bool isRead;
+  final String? content;
+  final bool? isRead;
   final UserProfile? sender;
   final UserProfile? receiver;
   final Product? product;
 
   UserProfile? contactFor(int userId) => senderId == userId ? receiver : sender;
 
-  factory MarketplaceMessage.fromJson(JsonMap json) {
+  static MarketplaceMessage fromJson(JsonMap json) {
     final sender = json['sender'] ?? json['senderProfile'];
     final receiver = json['receiver'] ?? json['receiverProfile'];
     final product = json['product'];
@@ -547,8 +579,8 @@ class NotificationActor {
     this.lastName,
     this.avatarUrl,
   });
-  final int id;
-  final String username;
+  final int? id;
+  final String? username;
   final String? fullName;
   final String? firstName;
   final String? lastName;
@@ -558,11 +590,12 @@ class NotificationActor {
     final name = fullName?.trim();
     if (name?.isNotEmpty == true) return name!;
     final joined = [
-      firstName,
-      lastName,
-    ].where((part) => part?.trim().isNotEmpty == true).join(' ');
+      firstName?.trim() ?? '',
+      lastName?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).join(' ');
     if (joined.isNotEmpty) return joined;
-    return username.isNotEmpty ? username : 'Member #$id';
+    final handle = username?.trim() ?? '';
+    return handle.isNotEmpty ? handle : 'Member #${id ?? ''}';
   }
 
   String get initial {
@@ -570,7 +603,7 @@ class NotificationActor {
     return name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
   }
 
-  factory NotificationActor.fromJson(JsonMap json) => NotificationActor(
+  static NotificationActor fromJson(JsonMap json) => NotificationActor(
     id: _int(json['id']),
     username: '${json['username'] ?? ''}',
     fullName: json['fullName'] as String?,
@@ -593,13 +626,13 @@ class MarketplaceNotification {
     this.productId,
     this.actor,
   });
-  final int id;
-  final String type;
-  final String message;
-  final bool isRead;
+  final int? id;
+  final String? type;
+  final String? message;
+  final bool? isRead;
   final int? refId;
   final DateTime? createdAt;
-  final int itemCount;
+  final int? itemCount;
   final int? postId;
   final int? productId;
   final NotificationActor? actor;
@@ -619,7 +652,7 @@ class MarketplaceNotification {
     actor: actor,
   );
 
-  factory MarketplaceNotification.fromJson(JsonMap json) {
+  static MarketplaceNotification fromJson(JsonMap json) {
     final actor = json['actor'];
     return MarketplaceNotification(
       id: _int(json['id']),
@@ -654,22 +687,25 @@ class MarketplacePost {
     this.postByUser,
     this.isRemoved = false,
   });
-  final int id;
-  final int userId;
-  final List<Product> products;
+  final int? id;
+  final int? userId;
+  final List<Product>? products;
   final DateTime? createdAt;
   final String? content;
-  final int reactionCount;
-  final int commentCount;
-  final bool hasReacted;
-  final Map<int, ProductEngagement> productEngagements;
+  final int? reactionCount;
+  final int? commentCount;
+  final bool? hasReacted;
+  final Map<int, ProductEngagement>? productEngagements;
   final UserProfile? postByUser;
-  final bool isRemoved;
+  final bool? isRemoved;
 
   UserProfile? get seller => postByUser;
 
-  ProductEngagement engagementFor(Product product) =>
-      productEngagements[product.id] ?? const ProductEngagement();
+  ProductEngagement engagementFor(Product product) {
+    final productId = product.id;
+    if (productId == null) return const ProductEngagement();
+    return productEngagements?[productId] ?? const ProductEngagement();
+  }
 
   MarketplacePost withProducts(List<Product> value) => MarketplacePost(
     id: id,
@@ -685,7 +721,7 @@ class MarketplacePost {
     isRemoved: isRemoved,
   );
 
-  factory MarketplacePost.fromJson(JsonMap json) {
+  static MarketplacePost fromJson(JsonMap json) {
     final post = json['post'] is Map
         ? Map<String, dynamic>.from(json['post'] as Map)
         : json;
@@ -720,7 +756,7 @@ class MarketplacePost {
                     Map<String, dynamic>.from(item),
                   ),
                 ))
-          item.productId: item,
+          if (item.productId != null) item.productId!: item,
       },
       products: ((json['products'] as List?) ?? const [])
           .whereType<Map>()
@@ -738,12 +774,12 @@ class ProductEngagement {
     this.hasReacted = false,
   });
 
-  final int productId;
-  final int reactionCount;
-  final int commentCount;
-  final bool hasReacted;
+  final int? productId;
+  final int? reactionCount;
+  final int? commentCount;
+  final bool? hasReacted;
 
-  factory ProductEngagement.fromJson(JsonMap json) => ProductEngagement(
+  static ProductEngagement fromJson(JsonMap json) => ProductEngagement(
     productId: _int(json['productId']),
     reactionCount: _int(json['reactionCount']),
     commentCount: _int(json['commentCount']),
@@ -762,14 +798,14 @@ class PostComment {
     this.avatar,
     this.replies = const [],
   });
-  final int id;
-  final int userId;
-  final String content;
+  final int? id;
+  final int? userId;
+  final String? content;
   final int? parentId;
   final String? username;
   final String? fullName;
   final MarketplaceImage? avatar;
-  final List<PostComment> replies;
+  final List<PostComment>? replies;
 
   String get displayName => (fullName?.trim().isNotEmpty ?? false)
       ? fullName!.trim()
@@ -777,7 +813,7 @@ class PostComment {
       ? username!.trim()
       : 'Member #$userId';
 
-  factory PostComment.fromJson(JsonMap json) {
+  static PostComment fromJson(JsonMap json) {
     final author = asJsonMap(json['author']);
     return PostComment(
       id: _int(json['id']),
@@ -845,17 +881,17 @@ class EmployeeProfile {
     this.updatedAt,
   });
 
-  final int id;
-  final int userId;
-  final double baseSalary;
-  final double allowance;
-  final String status;
+  final int? id;
+  final int? userId;
+  final double? baseSalary;
+  final double? allowance;
+  final String? status;
   final String? username;
   final String? fullName;
   final String? employeeCode;
   final String? jobTitle;
   final String? department;
-  final String currency;
+  final String? currency;
   final DateTime? hireDate;
   final String? bankName;
   final String? bankAccount;
@@ -873,12 +909,12 @@ class EmployeeProfile {
     final code = employeeCode?.trim();
     return code?.isNotEmpty == true
         ? code!
-        : 'EMP-${userId.toString().padLeft(4, '0')}';
+        : 'EMP-${(userId ?? 0).toString().padLeft(4, '0')}';
   }
 
-  double get monthlyPackage => baseSalary + allowance;
+  double get monthlyPackage => (baseSalary ?? 0) + (allowance ?? 0);
 
-  factory EmployeeProfile.fromJson(JsonMap json) => EmployeeProfile(
+  static EmployeeProfile fromJson(JsonMap json) => EmployeeProfile(
     id: _int(json['id']),
     userId: _int(json['userId']),
     baseSalary: _double(json['baseSalary']),
@@ -917,14 +953,14 @@ class PayrollRun {
     this.updatedAt,
   });
 
-  final int id;
-  final int periodYear;
-  final int periodMonth;
-  final String status;
-  final double totalGross;
-  final double totalDeductions;
-  final double totalNet;
-  final String currency;
+  final int? id;
+  final int? periodYear;
+  final int? periodMonth;
+  final String? status;
+  final double? totalGross;
+  final double? totalDeductions;
+  final double? totalNet;
+  final String? currency;
   final String? notes;
   final int? createdBy;
   final int? approvedBy;
@@ -939,7 +975,7 @@ class PayrollRun {
   bool get isPaid => status == 'PAID';
   bool get isCancelled => status == 'CANCELLED';
 
-  factory PayrollRun.fromJson(JsonMap json) => PayrollRun(
+  static PayrollRun fromJson(JsonMap json) => PayrollRun(
     id: _int(json['id']),
     periodYear: _int(json['periodYear']),
     periodMonth: _int(json['periodMonth']),
@@ -986,9 +1022,9 @@ class Payslip {
     this.updatedAt,
   });
 
-  final int id;
-  final int runId;
-  final int userId;
+  final int? id;
+  final int? runId;
+  final int? userId;
   final int? periodYear;
   final int? periodMonth;
   final String? runStatus;
@@ -996,16 +1032,16 @@ class Payslip {
   final String? employeeName;
   final String? jobTitle;
   final String? department;
-  final double baseSalary;
-  final double allowance;
-  final double bonus;
-  final double overtime;
-  final double tax;
-  final double otherDeductions;
-  final double grossPay;
-  final double deductionsTotal;
-  final double netPay;
-  final String currency;
+  final double? baseSalary;
+  final double? allowance;
+  final double? bonus;
+  final double? overtime;
+  final double? tax;
+  final double? otherDeductions;
+  final double? grossPay;
+  final double? deductionsTotal;
+  final double? netPay;
+  final String? currency;
   final String? notes;
   final DateTime? paidAt;
   final DateTime? createdAt;
@@ -1020,7 +1056,7 @@ class Payslip {
     return code?.isNotEmpty == true ? code! : 'Employee #$userId';
   }
 
-  factory Payslip.fromJson(JsonMap json) => Payslip(
+  static Payslip fromJson(JsonMap json) => Payslip(
     id: _int(json['id']),
     runId: _int(json['runId']),
     userId: _int(json['userId']),
@@ -1067,23 +1103,23 @@ class ReportOverview {
     required this.availableValue,
   });
 
-  final int totalUsers;
-  final int activeUsers;
-  final int sellers;
-  final int products;
-  final int availableProducts;
-  final int soldProducts;
-  final int posts;
-  final int comments;
-  final int reactions;
-  final int wishlists;
-  final int employees;
-  final int activeEmployees;
-  final double paidGross;
-  final double paidNet;
-  final double availableValue;
+  final int? totalUsers;
+  final int? activeUsers;
+  final int? sellers;
+  final int? products;
+  final int? availableProducts;
+  final int? soldProducts;
+  final int? posts;
+  final int? comments;
+  final int? reactions;
+  final int? wishlists;
+  final int? employees;
+  final int? activeEmployees;
+  final double? paidGross;
+  final double? paidNet;
+  final double? availableValue;
 
-  factory ReportOverview.fromJson(JsonMap json) => ReportOverview(
+  static ReportOverview fromJson(JsonMap json) => ReportOverview(
     totalUsers: _int(json['totalUsers']),
     activeUsers: _int(json['activeUsers']),
     sellers: _int(json['sellers']),
@@ -1109,11 +1145,11 @@ class ProductStatusReport {
     required this.value,
   });
 
-  final String status;
-  final int products;
-  final double value;
+  final String? status;
+  final int? products;
+  final double? value;
 
-  factory ProductStatusReport.fromJson(JsonMap json) => ProductStatusReport(
+  static ProductStatusReport fromJson(JsonMap json) => ProductStatusReport(
     status: '${json['status'] ?? 'UNKNOWN'}',
     products: _int(json['products']),
     value: _double(json['value']),
@@ -1130,14 +1166,14 @@ class CategoryReport {
     required this.value,
   });
 
-  final String category;
-  final int products;
-  final int available;
-  final int sold;
-  final int reserved;
-  final double value;
+  final String? category;
+  final int? products;
+  final int? available;
+  final int? sold;
+  final int? reserved;
+  final double? value;
 
-  factory CategoryReport.fromJson(JsonMap json) => CategoryReport(
+  static CategoryReport fromJson(JsonMap json) => CategoryReport(
     category: '${json['category'] ?? 'Uncategorized'}',
     products: _int(json['products']),
     available: _int(json['available']),
@@ -1157,14 +1193,14 @@ class MonthlyActivityReport {
     required this.reactions,
   });
 
-  final String month;
-  final int users;
-  final int products;
-  final int posts;
-  final int comments;
-  final int reactions;
+  final String? month;
+  final int? users;
+  final int? products;
+  final int? posts;
+  final int? comments;
+  final int? reactions;
 
-  factory MonthlyActivityReport.fromJson(JsonMap json) => MonthlyActivityReport(
+  static MonthlyActivityReport fromJson(JsonMap json) => MonthlyActivityReport(
     month: '${json['month'] ?? ''}',
     users: _int(json['users']),
     products: _int(json['products']),
@@ -1184,14 +1220,14 @@ class EngagementReport {
     required this.messages,
   });
 
-  final String month;
-  final int comments;
-  final int reactions;
-  final int wishlists;
-  final int reviews;
-  final int messages;
+  final String? month;
+  final int? comments;
+  final int? reactions;
+  final int? wishlists;
+  final int? reviews;
+  final int? messages;
 
-  factory EngagementReport.fromJson(JsonMap json) => EngagementReport(
+  static EngagementReport fromJson(JsonMap json) => EngagementReport(
     month: '${json['month'] ?? ''}',
     comments: _int(json['comments']),
     reactions: _int(json['reactions']),
@@ -1212,15 +1248,15 @@ class TopSellerReport {
     required this.comments,
   });
 
-  final int userId;
-  final String name;
-  final int listings;
-  final int sold;
-  final double revenue;
-  final int reactions;
-  final int comments;
+  final int? userId;
+  final String? name;
+  final int? listings;
+  final int? sold;
+  final double? revenue;
+  final int? reactions;
+  final int? comments;
 
-  factory TopSellerReport.fromJson(JsonMap json) => TopSellerReport(
+  static TopSellerReport fromJson(JsonMap json) => TopSellerReport(
     userId: _int(json['userId']),
     name: '${json['name'] ?? 'Seller #${json['userId'] ?? ''}'}',
     listings: _int(json['listings']),
@@ -1242,17 +1278,17 @@ class PayrollDepartmentReport {
     required this.net,
   });
 
-  final int periodYear;
-  final int periodMonth;
-  final String department;
-  final int employees;
-  final double gross;
-  final double deductions;
-  final double net;
+  final int? periodYear;
+  final int? periodMonth;
+  final String? department;
+  final int? employees;
+  final double? gross;
+  final double? deductions;
+  final double? net;
 
   String get periodLabel => payrollPeriodLabel(periodYear, periodMonth);
 
-  factory PayrollDepartmentReport.fromJson(JsonMap json) =>
+  static PayrollDepartmentReport fromJson(JsonMap json) =>
       PayrollDepartmentReport(
         periodYear: _int(json['periodYear']),
         periodMonth: _int(json['periodMonth']),
@@ -1275,17 +1311,17 @@ class PayrollRunReport {
     required this.net,
   });
 
-  final int periodYear;
-  final int periodMonth;
-  final String status;
-  final int employees;
-  final double gross;
-  final double deductions;
-  final double net;
+  final int? periodYear;
+  final int? periodMonth;
+  final String? status;
+  final int? employees;
+  final double? gross;
+  final double? deductions;
+  final double? net;
 
   String get periodLabel => payrollPeriodLabel(periodYear, periodMonth);
 
-  factory PayrollRunReport.fromJson(JsonMap json) => PayrollRunReport(
+  static PayrollRunReport fromJson(JsonMap json) => PayrollRunReport(
     periodYear: _int(json['periodYear']),
     periodMonth: _int(json['periodMonth']),
     status: '${json['status'] ?? 'DRAFT'}',
@@ -1305,13 +1341,13 @@ class HeadcountReport {
     required this.total,
   });
 
-  final String department;
-  final int active;
-  final int onLeave;
-  final int terminated;
-  final int total;
+  final String? department;
+  final int? active;
+  final int? onLeave;
+  final int? terminated;
+  final int? total;
 
-  factory HeadcountReport.fromJson(JsonMap json) => HeadcountReport(
+  static HeadcountReport fromJson(JsonMap json) => HeadcountReport(
     department: '${json['department'] ?? 'Unassigned'}',
     active: _int(json['active']),
     onLeave: _int(json['onLeave']),

@@ -144,7 +144,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Column(
         children: [
           Material(
-            color: Colors.white,
+            color: StyleColor.surface,
             child: TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
@@ -205,91 +205,91 @@ class _ReportsScreenState extends State<ReportsScreen> {
         children: [
           _KpiTile(
             label: 'report.kpi.totalUsers'.tr(),
-            value: _number(overview.totalUsers),
+            value: _number(overview.totalUsers ?? 0),
             icon: Icons.people_alt_outlined,
             color: StyleColor.teal,
           ),
           _KpiTile(
             label: 'report.kpi.activeUsers'.tr(),
-            value: _number(overview.activeUsers),
+            value: _number(overview.activeUsers ?? 0),
             icon: Icons.how_to_reg_outlined,
             color: StyleColor.success,
           ),
           _KpiTile(
             label: 'report.kpi.sellers'.tr(),
-            value: _number(overview.sellers),
+            value: _number(overview.sellers ?? 0),
             icon: Icons.storefront_outlined,
             color: StyleColor.accent,
           ),
           _KpiTile(
             label: 'report.kpi.listings'.tr(),
-            value: _number(overview.products),
+            value: _number(overview.products ?? 0),
             icon: Icons.inventory_2_outlined,
             color: StyleColor.teal,
           ),
           _KpiTile(
             label: 'report.kpi.available'.tr(),
-            value: _number(overview.availableProducts),
+            value: _number(overview.availableProducts ?? 0),
             icon: Icons.check_circle_outline_rounded,
             color: StyleColor.success,
           ),
           _KpiTile(
             label: 'report.kpi.sold'.tr(),
-            value: _number(overview.soldProducts),
+            value: _number(overview.soldProducts ?? 0),
             icon: Icons.sell_outlined,
             color: StyleColor.teal,
           ),
           _KpiTile(
             label: 'report.kpi.posts'.tr(),
-            value: _number(overview.posts),
+            value: _number(overview.posts ?? 0),
             icon: Icons.article_outlined,
             color: StyleColor.accent,
           ),
           _KpiTile(
             label: 'report.kpi.comments'.tr(),
-            value: _number(overview.comments),
+            value: _number(overview.comments ?? 0),
             icon: Icons.chat_bubble_outline_rounded,
             color: StyleColor.teal,
           ),
           _KpiTile(
             label: 'report.kpi.reactions'.tr(),
-            value: _number(overview.reactions),
+            value: _number(overview.reactions ?? 0),
             icon: Icons.favorite_border_rounded,
             color: const Color(0xFFE84393),
           ),
           _KpiTile(
             label: 'report.kpi.wishlists'.tr(),
-            value: _number(overview.wishlists),
+            value: _number(overview.wishlists ?? 0),
             icon: Icons.bookmark_border_rounded,
             color: const Color(0xFF7A5AF8),
           ),
           _KpiTile(
             label: 'report.kpi.employees'.tr(),
-            value: _number(overview.employees),
+            value: _number(overview.employees ?? 0),
             icon: Icons.badge_outlined,
             color: StyleColor.teal,
           ),
           _KpiTile(
             label: 'report.kpi.activeStaff'.tr(),
-            value: _number(overview.activeEmployees),
+            value: _number(overview.activeEmployees ?? 0),
             icon: Icons.work_outline_rounded,
             color: StyleColor.success,
           ),
           _KpiTile(
             label: 'report.kpi.paidGross'.tr(),
-            value: _money(overview.paidGross),
+            value: _money(overview.paidGross ?? 0),
             icon: Icons.account_balance_wallet_outlined,
             color: StyleColor.accent,
           ),
           _KpiTile(
             label: 'report.kpi.paidNet'.tr(),
-            value: _money(overview.paidNet),
+            value: _money(overview.paidNet ?? 0),
             icon: Icons.payments_outlined,
             color: StyleColor.teal,
           ),
           _KpiTile(
             label: 'report.kpi.availableValue'.tr(),
-            value: _money(overview.availableValue),
+            value: _money(overview.availableValue ?? 0),
             icon: Icons.price_check_rounded,
             color: StyleColor.success,
           ),
@@ -350,11 +350,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _activity)
             [
               item.month,
-              _number(item.users),
-              _number(item.products),
-              _number(item.posts),
-              _number(item.comments),
-              _number(item.reactions),
+              _number(item.users ?? 0),
+              _number(item.products ?? 0),
+              _number(item.posts ?? 0),
+              _number(item.comments ?? 0),
+              _number(item.reactions ?? 0),
             ],
         ],
       ),
@@ -393,9 +393,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
         rows: [
           for (final item in _statuses)
             [
-              _titleCase(item.status),
-              _number(item.products),
-              _money(item.value),
+              _titleCase(item.status ?? ''),
+              _number(item.products ?? 0),
+              _money(item.value ?? 0),
             ],
         ],
       ),
@@ -450,11 +450,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _categories)
             [
               item.category,
-              _number(item.products),
-              _number(item.available),
-              _number(item.sold),
-              _number(item.reserved),
-              _money(item.value),
+              _number(item.products ?? 0),
+              _number(item.available ?? 0),
+              _number(item.sold ?? 0),
+              _number(item.reserved ?? 0),
+              _money(item.value ?? 0),
             ],
         ],
       ),
@@ -509,11 +509,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _sellers)
             [
               item.name,
-              _number(item.listings),
-              _number(item.sold),
-              _money(item.revenue),
-              _number(item.reactions),
-              _number(item.comments),
+              _number(item.listings ?? 0),
+              _number(item.sold ?? 0),
+              _money(item.revenue ?? 0),
+              _number(item.reactions ?? 0),
+              _number(item.comments ?? 0),
             ],
         ],
       ),
@@ -571,11 +571,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _activity)
             [
               item.month,
-              _number(item.users),
-              _number(item.products),
-              _number(item.posts),
-              _number(item.comments),
-              _number(item.reactions),
+              _number(item.users ?? 0),
+              _number(item.products ?? 0),
+              _number(item.posts ?? 0),
+              _number(item.comments ?? 0),
+              _number(item.reactions ?? 0),
             ],
         ],
       ),
@@ -630,11 +630,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _engagement)
             [
               item.month,
-              _number(item.messages),
-              _number(item.comments),
-              _number(item.reactions),
-              _number(item.wishlists),
-              _number(item.reviews),
+              _number(item.messages ?? 0),
+              _number(item.comments ?? 0),
+              _number(item.reactions ?? 0),
+              _number(item.wishlists ?? 0),
+              _number(item.reviews ?? 0),
             ],
         ],
       ),
@@ -692,10 +692,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
             [
               item.periodLabel,
               item.department,
-              _number(item.employees),
-              _money(item.gross),
-              _money(item.deductions),
-              _money(item.net),
+              _number(item.employees ?? 0),
+              _money(item.gross ?? 0),
+              _money(item.deductions ?? 0),
+              _money(item.net ?? 0),
             ],
         ],
       ),
@@ -749,11 +749,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _runs)
             [
               item.periodLabel,
-              _titleCase(item.status),
-              _number(item.employees),
-              _money(item.gross),
-              _money(item.deductions),
-              _money(item.net),
+              _titleCase(item.status ?? ''),
+              _number(item.employees ?? 0),
+              _money(item.gross ?? 0),
+              _money(item.deductions ?? 0),
+              _money(item.net ?? 0),
             ],
         ],
       ),
@@ -802,10 +802,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final item in _headcount)
             [
               item.department,
-              _number(item.active),
-              _number(item.onLeave),
-              _number(item.terminated),
-              _number(item.total),
+              _number(item.active ?? 0),
+              _number(item.onLeave ?? 0),
+              _number(item.terminated ?? 0),
+              _number(item.total ?? 0),
             ],
         ],
       ),
@@ -985,7 +985,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       series: <CircularSeries<ProductStatusReport, String>>[
         DoughnutSeries<ProductStatusReport, String>(
           dataSource: _statuses,
-          xValueMapper: (item, _) => _titleCase(item.status),
+          xValueMapper: (item, _) => _titleCase(item.status ?? ''),
           yValueMapper: (item, _) => item.products,
           pointColorMapper: (item, _) => switch (item.status) {
             'AVAILABLE' => StyleColor.success,
@@ -1156,7 +1156,7 @@ class _KpiTile extends StatelessWidget {
     width: 168,
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: StyleColor.surface,
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: StyleColor.line),
     ),

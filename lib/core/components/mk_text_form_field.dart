@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_theme.dart';
+
 /// Shared marketplace text input. Keep field appearance and common behavior
 /// here so forms can be restyled consistently from one place.
 class MKTextFormField extends StatelessWidget {
@@ -62,21 +64,21 @@ class MKTextFormField extends StatelessWidget {
   final MouseCursor? mouseCursor;
 
   static const _radius = BorderRadius.all(Radius.circular(14));
-  static const _borderColor = Color(0xFFDCE6E3);
 
   InputDecoration _styledDecoration(BuildContext context) {
-    final errorColor = Theme.of(context).colorScheme.error;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final baseBorder = OutlineInputBorder(
       borderRadius: _radius,
-      borderSide: const BorderSide(color: _borderColor, width: .5),
+      borderSide: BorderSide(color: scheme.outline, width: .5),
     );
     final errorBorder = OutlineInputBorder(
       borderRadius: _radius,
-      borderSide: BorderSide(color: errorColor, width: .7),
+      borderSide: BorderSide(color: scheme.error, width: .7),
     );
     return decoration.copyWith(
       filled: decoration.filled ?? true,
-      fillColor: decoration.fillColor ?? Colors.white,
+      fillColor: decoration.fillColor ?? StyleColor.surfaceVariant,
       contentPadding:
           decoration.contentPadding ??
           const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -87,7 +89,7 @@ class MKTextFormField extends StatelessWidget {
           decoration.focusedBorder ??
           OutlineInputBorder(
             borderRadius: _radius,
-            borderSide: const BorderSide(color: Color(0xFF12302E), width: 1),
+            borderSide: BorderSide(color: scheme.primary, width: 1),
           ),
       errorBorder: decoration.errorBorder ?? errorBorder,
       focusedErrorBorder: decoration.focusedErrorBorder ?? errorBorder,

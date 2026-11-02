@@ -19,7 +19,7 @@ class ManagementPanel extends StatelessWidget {
     margin: const EdgeInsets.all(10),
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: StyleColor.surface,
       borderRadius: BorderRadius.circular(16),
     ),
     child: Column(

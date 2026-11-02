@@ -35,7 +35,7 @@ class ManagementDataGrid extends StatefulWidget {
 }
 
 class _ManagementDataGridState extends State<ManagementDataGrid> {
-  static final Color _borderColor = Colors.grey.shade400;
+  static const Color _borderColor = StyleColor.line;
 
   late _ManagementDataSource _source;
 
@@ -137,7 +137,7 @@ class _ManagementDataSource extends DataGridSource {
 
   @override
   DataGridRowAdapter buildRow(DataGridRow row) => DataGridRowAdapter(
-    color: Colors.white,
+    color: StyleColor.surface,
     cells: [
       for (var index = 0; index < row.getCells().length; index++)
         Container(

@@ -77,7 +77,7 @@ class _MyPayslipsScreenState extends State<MyPayslipsScreen> {
     try {
       final page = await api.myPayslips();
       if (!mounted) return;
-      setState(() => _payslips = page.items);
+      setState(() => _payslips = page.items ?? const <Payslip>[]);
     } catch (error) {
       if (!mounted) return;
       setState(() => _payslipsError = error);
@@ -346,10 +346,12 @@ class _MyPayslipsScreenState extends State<MyPayslipsScreen> {
   );
 
   Future<void> _openPayslip(Payslip payslip) async {
+    final payslipId = payslip.id;
+    if (payslipId == null) return;
     try {
       final detail = await GlobalPopupDialog.withLoading(
         context,
-        () => api.myPayslip(payslip.id),
+        () => api.myPayslip(payslipId),
         message: 'payslips.loading'.tr(),
       );
       if (!mounted) return;
@@ -363,7 +365,7 @@ class _MyPayslipsScreenState extends State<MyPayslipsScreen> {
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    backgroundColor: Colors.white,
+    backgroundColor: StyleColor.surface,
     builder: (sheetContext) => SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
